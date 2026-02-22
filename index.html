@@ -60,6 +60,10 @@
           <span class="status-dot disconnected" id="status"></span>
           <span id="status-text">Offline</span>
         </div>
+        <select id="theme-select" class="theme-select" title="Change theme">
+          <option value="anime">Anime</option>
+          <option value="jrpg">JRPG</option>
+        </select>
         <button id="signout-btn">Sign out</button>
       </div>
     </header>
@@ -87,7 +91,6 @@
     import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.4.0/firebase-app.js';
     import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/11.4.0/firebase-auth.js';
     import { getFirestore, doc, getDoc } from 'https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore.js';
-    import { getStorage, ref, uploadBytes, getDownloadURL } from 'https://www.gstatic.com/firebasejs/11.4.0/firebase-storage.js';
 
     const firebaseConfig = {
       apiKey: "AIzaSyCntodkV9WMDQOPaSUWH-VuURXWFj38erM",
@@ -101,7 +104,6 @@
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
     const db = getFirestore(app);
-    const storage = getStorage(app);
 
     // ============================================
     // CONFIGURATION (loaded from Firestore after auth)
@@ -746,7 +748,7 @@
       
       const avatarImg = msg.role === 'assistant' 
         ? '<img src="eevee-sprite.jpg" alt="Eevee">' 
-        : '<span style="font-size: 28px;">🧙</span>';
+        : '<img src="user-avatar.jpg" alt="You" style="width:40px;height:40px;border-radius:50%;object-fit:cover;">';
       const avatarClass = msg.role === 'assistant' ? 'assistant' : 'user';
       
       let contentHtml = '';
@@ -855,47 +857,13 @@
     
     imageBtn.addEventListener('click', () => fileInput.click());
     
-    fileInput.addEventListener('change', async (e) => {
+    fileInput.addEventListener('change', (e) => {
       const file = e.target.files[0];
-      if (!file) return;
-      fileInput.value = '';
-
-      if (!file.type.startsWith('image/')) {
-        addMessage('assistant', 'Please select an image file.', 'text');
-        return;
-      }
-      if (file.size > 5 * 1024 * 1024) {
-        addMessage('assistant', 'Image must be under 5 MB.', 'text');
-        return;
-      }
-
-      const userId = currentUser?.uid;
-      if (!userId) return;
-
-      imageBtn.disabled = true;
-      imageBtn.style.opacity = '0.4';
-
-      try {
-        const path = `chat-images/${userId}/${Date.now()}-${file.name}`;
-        const storageRef = ref(storage, path);
-        await uploadBytes(storageRef, file, { contentType: file.type });
-        const downloadUrl = await getDownloadURL(storageRef);
-
-        addMessage('user', file.name, 'image', downloadUrl);
-
-        await sendRequest('chat.send', {
-          sessionKey: 'agent:main:main',
-          message: `[image] ${downloadUrl}`,
-          deliver: true,
-          idempotencyKey: generateId()
-        });
-        console.log('📤 Image sent!');
-      } catch (err) {
-        console.error('❌ Image upload failed:', err);
-        addMessage('assistant', `Image upload failed: ${err.message}`, 'text');
-      } finally {
-        imageBtn.disabled = false;
-        imageBtn.style.opacity = '';
+      if (file) {
+        // In a real app, you'd upload to Firebase Storage first
+        // For now, just send as base64 or file URL
+        console.log('Selected file:', file.name);
+        alert('Image upload coming soon! (Need Firebase Storage setup)');
       }
     });
 
@@ -907,6 +875,25 @@
     const loginBtn = document.getElementById('login-btn');
     const loginError = document.getElementById('login-error');
     const signoutBtn = document.getElementById('signout-btn');
+    const themeSelect = document.getElementById('theme-select');
+
+    // Theme switching
+    function setTheme(theme) {
+      document.body.classList.remove('theme-anime', 'theme-jrpg');
+      if (theme === 'jrpg') {
+        document.body.classList.add('theme-jrpg');
+      }
+      localStorage.setItem('eevee.theme', theme);
+      themeSelect.value = theme;
+    }
+
+    // Load saved theme or default to anime
+    const savedTheme = localStorage.getItem('eevee.theme') || 'anime';
+    setTheme(savedTheme);
+
+    themeSelect.addEventListener('change', (e) => {
+      setTheme(e.target.value);
+    });
 
     let currentUser = null;
 
