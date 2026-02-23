@@ -1,0 +1,775 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Eeveelution Journal — Prototype</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;500;600;700&family=Special+Elite&family=Quicksand:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --page-bg: #f4ebd4;
+      --page-bg-dark: #e8dbc0;
+      --line-color: rgba(100, 130, 190, 0.32);
+      --margin-color: rgba(200, 70, 70, 0.35);
+      --ink-dark: #1a1208;
+      --ink-user: #1a3a6a;
+      --ink-assistant: #2c1810;
+      --ink-muted: #9a8a72;
+      --ink-timestamp: #b8a890;
+      --wood-dark: #4a3520;
+      --wood-mid: #8b7042;
+      --wood-light: #a0845c;
+      --line-height: 26px;
+      --page-padding-top: 48px;
+      --page-padding-bottom: 40px;
+      --page-padding-left: 56px;
+      --page-padding-right: 24px;
+      --margin-left: 48px;
+    }
+
+    html, body {
+      height: 100%;
+      overflow: hidden;
+      background: #d4c4a8;
+      font-family: 'Special Elite', 'Courier New', monospace;
+    }
+
+    /* === WOOD FRAME HEADER === */
+    header {
+      background: linear-gradient(180deg, #a0845c 0%, #8b7042 50%, #6b5530 100%);
+      border-bottom: 4px solid #4a3520;
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.15), 0 4px 8px rgba(0,0,0,0.4);
+      z-index: 100;
+      position: relative;
+    }
+
+    header h1 {
+      font-family: 'Special Elite', monospace;
+      background: linear-gradient(180deg, #fff8dc 0%, #f0e6c0 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+      font-size: 18px;
+      letter-spacing: 2px;
+    }
+
+    .page-indicator {
+      font-family: 'Caveat', cursive;
+      color: #fff8dc;
+      font-size: 16px;
+      opacity: 0.8;
+    }
+
+    /* === JOURNAL AREA === */
+    .journal-area {
+      position: relative;
+      width: 100%;
+      height: calc(100% - 56px - 68px);
+      overflow: hidden;
+      /* Desk surface */
+      background: #b8a080;
+      background-image:
+        repeating-linear-gradient(87deg, transparent, transparent 12px, rgba(90,65,35,0.04) 12px, rgba(90,65,35,0.04) 13px),
+        radial-gradient(ellipse at 40% 30%, rgba(200,180,140,0.35) 0%, transparent 55%),
+        radial-gradient(ellipse at 50% 50%, transparent 40%, rgba(60,40,20,0.15) 100%),
+        linear-gradient(175deg, #c4ad8a 0%, #b09570 40%, #a08660 100%);
+    }
+
+    /* === THE PAGE === */
+    .page {
+      position: absolute;
+      top: 8px; left: 8px; right: 8px; bottom: 8px;
+      border-radius: 2px;
+      overflow: hidden;
+      /* Ruled notebook paper */
+      background-color: var(--page-bg);
+      background-image:
+        repeating-linear-gradient(
+          to bottom,
+          transparent,
+          transparent calc(var(--line-height) - 1px),
+          var(--line-color) calc(var(--line-height) - 1px),
+          var(--line-color) var(--line-height)
+        ),
+        linear-gradient(
+          to right,
+          transparent calc(var(--margin-left) - 1px),
+          var(--margin-color) calc(var(--margin-left) - 1px),
+          var(--margin-color) calc(var(--margin-left) + 1px),
+          transparent calc(var(--margin-left) + 1px)
+        );
+      background-position: 0 var(--page-padding-top);
+      background-repeat: repeat;
+      box-shadow:
+        0 2px 8px rgba(0,0,0,0.1),
+        0 1px 2px rgba(0,0,0,0.12),
+        3px 0 6px rgba(0,0,0,0.06),
+        inset 0 0 60px rgba(0,0,0,0.02),
+        inset 4px 0 12px rgba(0,0,0,0.04);
+    }
+
+    /* Aged paper overlays */
+    .page::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background:
+        linear-gradient(180deg, rgba(160,130,80,0.12) 0%, transparent 5%),
+        linear-gradient(0deg, rgba(160,130,80,0.15) 0%, transparent 4%),
+        linear-gradient(90deg, rgba(100,80,50,0.06) 0%, transparent 8%),
+        linear-gradient(270deg, rgba(180,150,90,0.08) 0%, transparent 5%),
+        radial-gradient(ellipse at 12% 8%, rgba(170,140,90,0.12) 0%, transparent 22%),
+        radial-gradient(ellipse at 88% 92%, rgba(160,130,80,0.1) 0%, transparent 18%);
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    /* Paper fiber texture */
+    .page::after {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: repeating-linear-gradient(2deg, transparent, transparent 3px, rgba(180,160,120,0.02) 3px, rgba(180,160,120,0.02) 4px);
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    /* === E-INK REFRESH — subtle screen clear === */
+    .eink-overlay {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      z-index: 100;
+      pointer-events: none;
+      opacity: 0;
+      background: var(--page-bg);
+    }
+
+    .eink-overlay.flashing {
+      animation: einkFlash 0.35s ease-in-out forwards;
+    }
+
+    @keyframes einkFlash {
+      0%   { opacity: 0; }
+      30%  { opacity: 0.85; }
+      50%  { opacity: 0.9; }
+      100% { opacity: 0; }
+    }
+
+    /* === PAGE CONTENT === */
+    .page-content {
+      position: relative;
+      z-index: 2;
+      padding: var(--page-padding-top) var(--page-padding-right) var(--page-padding-bottom) var(--page-padding-left);
+      height: 100%;
+      overflow: hidden;
+    }
+
+    /* Content fading out before page swap */
+    .page-content.fading-out {
+      animation: fadeOut 0.15s ease-in forwards;
+    }
+
+    @keyframes fadeOut {
+      0%   { opacity: 1; }
+      100% { opacity: 0; filter: contrast(0.5) blur(0.5px); }
+    }
+
+    /* === DATE STAMP === */
+    .date-stamp {
+      font-family: 'Caveat', cursive;
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--ink-muted);
+      text-align: right;
+      padding-right: 4px;
+      line-height: var(--line-height);
+      margin-bottom: 0;
+      transform: rotate(-0.5deg);
+      text-decoration: underline;
+      text-decoration-color: rgba(154,138,114,0.3);
+      text-underline-offset: 3px;
+    }
+
+    /* === JOURNAL ENTRIES === */
+    .journal-entry {
+      line-height: var(--line-height);
+      margin: 0;
+      padding: 0;
+      font-size: 15px;
+      letter-spacing: 0.3px;
+    }
+
+    .journal-entry.user-text { color: var(--ink-user); }
+    .journal-entry.assistant-text { color: var(--ink-assistant); }
+
+    .journal-entry .speaker {
+      font-family: 'Caveat', cursive;
+      font-weight: 700;
+      font-size: 14px;
+      opacity: 0.6;
+    }
+
+    .journal-entry .timestamp {
+      font-family: 'Caveat', cursive;
+      font-size: 12px;
+      color: var(--ink-timestamp);
+      margin-left: 8px;
+    }
+
+    /* === INK SOAK — message appearance animation === */
+    /* Characters materialize like ink bleeding into paper fibers */
+    .journal-entry.ink-soak,
+    .date-stamp.ink-soak {
+      opacity: 0;
+      animation: inkSoak 0.8s ease-out forwards;
+    }
+
+    @keyframes inkSoak {
+      0%   { opacity: 0; filter: blur(1.5px) contrast(0); }
+      20%  { opacity: 0.15; filter: blur(1px) contrast(0.3); }
+      40%  { opacity: 0.4; filter: blur(0.6px) contrast(0.6); }
+      60%  { opacity: 0.7; filter: blur(0.3px) contrast(0.85); }
+      80%  { opacity: 0.9; filter: blur(0.1px) contrast(0.95); }
+      100% { opacity: 1; filter: blur(0) contrast(1); }
+    }
+
+    /* Staggered delay for sequential message appearance */
+    .journal-entry.ink-soak:nth-child(2) { animation-delay: 0.06s; }
+    .journal-entry.ink-soak:nth-child(3) { animation-delay: 0.12s; }
+    .journal-entry.ink-soak:nth-child(4) { animation-delay: 0.18s; }
+    .journal-entry.ink-soak:nth-child(5) { animation-delay: 0.24s; }
+    .journal-entry.ink-soak:nth-child(6) { animation-delay: 0.30s; }
+    .journal-entry.ink-soak:nth-child(7) { animation-delay: 0.36s; }
+    .journal-entry.ink-soak:nth-child(8) { animation-delay: 0.42s; }
+    .journal-entry.ink-soak:nth-child(9) { animation-delay: 0.48s; }
+    .journal-entry.ink-soak:nth-child(10) { animation-delay: 0.54s; }
+
+    /* Single new message appearing (used for live chat) */
+    .journal-entry.ink-appear-single {
+      opacity: 0;
+      animation: inkAppearSingle 1.0s ease-out forwards;
+    }
+
+    @keyframes inkAppearSingle {
+      0%   { opacity: 0; filter: blur(2px) contrast(0); transform: translateY(2px); }
+      15%  { opacity: 0.08; filter: blur(1.5px) contrast(0.2); }
+      35%  { opacity: 0.35; filter: blur(0.8px) contrast(0.5); transform: translateY(0.5px); }
+      55%  { opacity: 0.65; filter: blur(0.4px) contrast(0.75); }
+      75%  { opacity: 0.88; filter: blur(0.15px) contrast(0.92); transform: translateY(0); }
+      100% { opacity: 1; filter: blur(0) contrast(1); transform: translateY(0); }
+    }
+
+    /* Page number */
+    .page-number {
+      position: absolute;
+      bottom: 14px;
+      left: 50%;
+      transform: translateX(-50%) rotate(-1.2deg);
+      font-family: 'Caveat', cursive;
+      font-size: 16px;
+      font-weight: 500;
+      color: var(--ink-muted);
+      z-index: 2;
+      letter-spacing: 1px;
+      opacity: 0.7;
+    }
+
+    /* === PAGE EDGE STACK (right side) === */
+    .journal-area::after {
+      content: '';
+      position: absolute;
+      top: 10px; right: 8px; bottom: 10px;
+      width: 10px;
+      background:
+        repeating-linear-gradient(to right,
+          rgba(244,235,212,0.95) 0px, rgba(244,235,212,0.95) 1px,
+          rgba(0,0,0,0.06) 1px, rgba(0,0,0,0.06) 1.5px,
+          rgba(232,220,192,0.9) 1.5px, rgba(232,220,192,0.9) 2.5px
+        ),
+        linear-gradient(to right,
+          rgba(0,0,0,0.08) 0%, rgba(244,235,212,0.7) 15%, rgba(220,208,180,0.95) 100%
+        );
+      border-radius: 0 2px 2px 0;
+      z-index: 5;
+      pointer-events: none;
+      box-shadow: 1px 0 2px rgba(0,0,0,0.08), 2px 1px 4px rgba(0,0,0,0.05);
+    }
+
+    /* Spine shadow (left) */
+    .journal-area::before {
+      content: '';
+      position: absolute;
+      top: 4px; left: 6px; bottom: 4px;
+      width: 8px;
+      background: linear-gradient(to right, rgba(60,40,20,0.3) 0%, rgba(60,40,20,0.12) 50%, transparent 100%);
+      border-radius: 2px 0 0 2px;
+      z-index: 8;
+      pointer-events: none;
+    }
+
+    /* === NAVIGATION ARROWS === */
+    .nav-arrow {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 44px;
+      height: 44px;
+      background: rgba(74, 53, 32, 0.06);
+      border: none;
+      border-radius: 50%;
+      cursor: pointer;
+      z-index: 60;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+      color: var(--wood-dark);
+      font-size: 20px;
+      opacity: 0;
+    }
+
+    .journal-area:hover .nav-arrow { opacity: 0.5; }
+    .nav-arrow:hover { opacity: 1 !important; background: rgba(74, 53, 32, 0.12); }
+    .nav-arrow.prev { left: 14px; }
+    .nav-arrow.next { right: 20px; }
+    .nav-arrow:disabled { opacity: 0 !important; cursor: default; pointer-events: none; }
+
+    /* === BOOKMARK RIBBON === */
+    .bookmark {
+      position: absolute;
+      top: -4px;
+      right: 30px;
+      width: 24px;
+      height: 60px;
+      background: linear-gradient(180deg, #8b0000 0%, #6b0000 100%);
+      z-index: 20;
+      clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 80%, 0 100%);
+      box-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+      cursor: pointer;
+      transition: height 0.3s;
+    }
+
+    .bookmark:hover { height: 70px; }
+
+    /* === INPUT AREA === */
+    .input-area {
+      background: linear-gradient(180deg, #6b5530 0%, #8b7042 50%, #a0845c 100%);
+      border-top: 4px solid #4a3520;
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);
+    }
+
+    .input-area input {
+      flex: 1;
+      background: #fff8ee;
+      border: 3px solid #4a3520;
+      border-radius: 2px;
+      padding: 10px 16px;
+      font-family: 'Special Elite', monospace;
+      font-size: 15px;
+      color: var(--ink-dark);
+      outline: none;
+      line-height: var(--line-height);
+    }
+
+    .input-area input:focus {
+      border-color: #8b0000;
+      box-shadow: 0 0 0 2px rgba(139,0,0,0.2);
+    }
+
+    .input-area input::placeholder { color: #a89880; font-style: italic; }
+
+    .input-area button {
+      width: 44px;
+      height: 44px;
+      background: #8b0000;
+      border: 3px solid #4a3520;
+      border-radius: 2px;
+      box-shadow: 3px 3px 0 rgba(0,0,0,0.3);
+      color: #fff8dc;
+      font-size: 18px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .input-area button:hover {
+      background: #a52a2a;
+      transform: translate(-1px, -1px);
+      box-shadow: 4px 4px 0 rgba(0,0,0,0.3);
+    }
+
+    .input-area button:active {
+      transform: translate(1px, 1px);
+      box-shadow: 1px 1px 0 rgba(0,0,0,0.3);
+    }
+
+    /* === RESPONSIVE === */
+    @media (max-width: 600px) {
+      :root {
+        --page-padding-left: 44px;
+        --page-padding-right: 16px;
+        --margin-left: 36px;
+        --line-height: 24px;
+      }
+      header h1 { font-size: 15px; }
+      .journal-entry { font-size: 14px; }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>Eeveelution Journal</h1>
+    <div class="page-indicator" id="page-indicator">Page 1 of 1</div>
+  </header>
+
+  <div class="journal-area" id="journal-area">
+    <div class="page" id="page">
+      <div class="eink-overlay" id="eink-overlay"></div>
+      <div class="page-content" id="page-content"></div>
+      <div class="page-number" id="page-number">1</div>
+      <div class="bookmark"></div>
+    </div>
+    <button class="nav-arrow prev" id="prev-btn" disabled>&larr;</button>
+    <button class="nav-arrow next" id="next-btn">&rarr;</button>
+  </div>
+
+  <div class="input-area">
+    <input type="text" id="message-input" placeholder="Write in the journal..." autocomplete="off">
+    <button id="send-btn">&rarr;</button>
+  </div>
+
+  <script>
+    // ============================================
+    // E-INK JOURNAL
+    // ============================================
+
+    const SAMPLE_CONVERSATION = [
+      { role: 'user', text: 'Hey Eevee! I was thinking about trying to learn a new programming language. Any suggestions?', time: '9:15 AM' },
+      { role: 'assistant', text: 'Oh that\'s exciting! It really depends on what you want to build. If you\'re into web stuff, TypeScript is super popular right now. For systems programming, Rust is amazing but has a steep learning curve. Python is great for AI and data science. What kind of projects interest you?', time: '9:15 AM' },
+      { role: 'user', text: 'I\'ve been really interested in game development lately. Something that would work well for making 2D games.', time: '9:17 AM' },
+      { role: 'assistant', text: 'For 2D games, you\'ve got some great options! Lua with Love2D is super lightweight and fun. C# with Unity or Monogame is very professional. GDScript with Godot is gaining a lot of momentum and feels very natural. I\'d personally recommend Godot with GDScript since it\'s free, open source, and the community is incredible right now.', time: '9:18 AM' },
+      { role: 'user', text: 'Godot sounds cool! Is it hard to get started?', time: '9:20 AM' },
+      { role: 'assistant', text: 'Not at all! Godot has one of the gentlest learning curves for game engines. GDScript looks a lot like Python so if you have any experience there, you\'ll feel right at home. The documentation is excellent and there are tons of tutorials. Start with a simple project like Pong or a platformer and build up from there. The node-based scene system is really intuitive once it clicks.', time: '9:21 AM' },
+      { role: 'user', text: 'What about music? I want my games to have great soundtracks.', time: '9:24 AM' },
+      { role: 'assistant', text: 'Music is such an important part of game feel! For creating game music, check out tools like LMMS (free), Bosca Ceoil (super simple chiptune tool), or FamiTracker for that classic NES sound. If you want something more professional, Ableton or FL Studio are industry standards. Godot handles audio really well — it supports WAV, OGG, and MP3. You can even do adaptive music that changes based on gameplay!', time: '9:25 AM' },
+      { role: 'user', text: 'This is all so helpful, thank you! One more question — should I start with pixel art or vector graphics?', time: '9:28 AM' },
+      { role: 'assistant', text: 'For your first game, I\'d actually recommend pixel art! It\'s more forgiving for beginners because small imperfections become part of the charm. Tools like Aseprite (paid but worth it) or Piskel (free, browser-based) make pixel art really accessible. The constraints of working with limited resolution actually boost creativity. Plus, pixel art has that timeless retro appeal that never goes out of style. Once you\'re comfortable, you can always explore vector art with Inkscape or Illustrator for a different aesthetic.', time: '9:30 AM' },
+      { role: 'user', text: 'You know what, let\'s do it! I\'m going to download Godot tonight and start learning.', time: '9:33 AM' },
+      { role: 'assistant', text: 'That\'s the spirit! Here\'s a quick roadmap to get you going: First, spend a day just playing with the Godot editor, dragging nodes around, getting comfortable. Then follow the official "Your First 2D Game" tutorial in the docs. After that, try building something tiny but complete — a game you can finish in a weekend. Ship it, even if it\'s rough! The feeling of completing something is the best motivation. I believe in you!', time: '9:34 AM' },
+    ];
+
+    class EinkJournal {
+      constructor() {
+        this.pages = [];
+        this.currentPage = 0;
+        this.totalPages = 0;
+        this.isTransitioning = false;
+
+        this.contentEl = document.getElementById('page-content');
+        this.overlayEl = document.getElementById('eink-overlay');
+        this.pageNumEl = document.getElementById('page-number');
+        this.indicatorEl = document.getElementById('page-indicator');
+        this.prevBtn = document.getElementById('prev-btn');
+        this.nextBtn = document.getElementById('next-btn');
+
+        this.init();
+      }
+
+      init() {
+        this.paginateMessages(SAMPLE_CONVERSATION);
+        this.renderPage(this.currentPage, true);
+        this.updateNav();
+        this.bindEvents();
+      }
+
+      // ==========================================
+      // PAGINATION
+      // ==========================================
+
+      getLinesPerPage() {
+        const area = document.getElementById('journal-area');
+        const containerHeight = area.clientHeight - 16;
+        const style = getComputedStyle(document.documentElement);
+        const usableHeight = containerHeight
+          - parseInt(style.getPropertyValue('--page-padding-top'))
+          - parseInt(style.getPropertyValue('--page-padding-bottom'));
+        const lineHeight = parseInt(style.getPropertyValue('--line-height'));
+        return Math.floor(usableHeight / lineHeight);
+      }
+
+      estimateLines(text) {
+        const area = document.getElementById('journal-area');
+        const containerWidth = area.clientWidth - 16;
+        const style = getComputedStyle(document.documentElement);
+        const paddingLeft = parseInt(style.getPropertyValue('--page-padding-left'));
+        const paddingRight = parseInt(style.getPropertyValue('--page-padding-right'));
+        const textWidth = containerWidth - paddingLeft - paddingRight;
+        const charsPerLine = Math.floor(textWidth / 8.5);
+        return Math.ceil(text.length / charsPerLine) + 1;
+      }
+
+      paginateMessages(messages) {
+        const linesPerPage = this.getLinesPerPage();
+        this.pages = [];
+        let currentPageMessages = [];
+        let currentLines = 1; // date stamp
+
+        for (const msg of messages) {
+          const msgLines = this.estimateLines(msg.text);
+          if (currentLines + msgLines > linesPerPage && currentPageMessages.length > 0) {
+            this.pages.push([...currentPageMessages]);
+            currentPageMessages = [msg];
+            currentLines = 1 + msgLines;
+          } else {
+            currentPageMessages.push(msg);
+            currentLines += msgLines;
+          }
+        }
+        if (currentPageMessages.length > 0) {
+          this.pages.push(currentPageMessages);
+        }
+        this.totalPages = Math.max(1, this.pages.length);
+      }
+
+      // ==========================================
+      // RENDERING
+      // ==========================================
+
+      renderPage(pageIndex, withInkSoak = false) {
+        this.contentEl.innerHTML = '';
+
+        // Date stamp
+        const dateStamp = document.createElement('div');
+        dateStamp.className = 'date-stamp';
+        dateStamp.textContent = 'February 23, 2026';
+        if (withInkSoak) dateStamp.classList.add('ink-soak');
+        this.contentEl.appendChild(dateStamp);
+
+        // Messages for this page
+        const messages = this.pages[pageIndex] || [];
+        for (const msg of messages) {
+          const entry = document.createElement('div');
+          entry.className = `journal-entry ${msg.role === 'user' ? 'user-text' : 'assistant-text'}`;
+          if (withInkSoak) entry.classList.add('ink-soak');
+
+          const speaker = document.createElement('span');
+          speaker.className = 'speaker';
+          speaker.textContent = msg.role === 'user' ? 'You' : 'Eevee';
+
+          const timestamp = document.createElement('span');
+          timestamp.className = 'timestamp';
+          timestamp.textContent = msg.time;
+
+          const text = document.createElement('span');
+          text.textContent = ' ' + msg.text;
+
+          entry.appendChild(speaker);
+          entry.appendChild(timestamp);
+          entry.appendChild(text);
+          this.contentEl.appendChild(entry);
+        }
+
+        // Page number
+        this.pageNumEl.textContent = pageIndex + 1;
+        this.indicatorEl.textContent = `Page ${pageIndex + 1} of ${this.totalPages}`;
+      }
+
+      // ==========================================
+      // E-INK PAGE TRANSITION
+      //
+      // 1. Flash overlay (dark → light → dark → settle)
+      // 2. Swap content mid-flash
+      // 3. New content settles in with ink effect
+      // ==========================================
+
+      transitionToPage(newPage) {
+        if (this.isTransitioning) return;
+        if (newPage < 0 || newPage >= this.totalPages) return;
+        if (newPage === this.currentPage) return;
+
+        this.isTransitioning = true;
+
+        // 1. Fade out current content
+        this.contentEl.classList.add('fading-out');
+
+        // 2. After fade-out, swap content and ink-soak in
+        setTimeout(() => {
+          this.currentPage = newPage;
+          this.contentEl.classList.remove('fading-out');
+          this.renderPage(this.currentPage, true);
+          this.updateNav();
+        }, 160);
+
+        // 3. Clean up after ink-soak animations complete
+        setTimeout(() => {
+          this.isTransitioning = false;
+        }, 1200);
+      }
+
+      // ==========================================
+      // ADD NEW MESSAGE (with ink-soak animation)
+      // ==========================================
+
+      addMessage(role, text) {
+        const msg = {
+          role,
+          text,
+          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        };
+        SAMPLE_CONVERSATION.push(msg);
+
+        // Re-paginate
+        const oldPageCount = this.totalPages;
+        this.paginateMessages(SAMPLE_CONVERSATION);
+
+        // If message fits on current page, append with animation
+        if (this.totalPages === oldPageCount && this.currentPage === this.totalPages - 1) {
+          const entry = this.createEntryElement(msg);
+          entry.classList.add('ink-appear-single');
+          this.contentEl.appendChild(entry);
+          this.updateNav();
+        }
+        // If it overflows to a new page, e-ink transition there
+        else if (this.totalPages > oldPageCount) {
+          this.transitionToPage(this.totalPages - 1);
+        }
+        // Otherwise just re-render current page
+        else {
+          this.renderPage(this.currentPage, false);
+          // Animate just the last entry
+          const entries = this.contentEl.querySelectorAll('.journal-entry');
+          const lastEntry = entries[entries.length - 1];
+          if (lastEntry) lastEntry.classList.add('ink-appear-single');
+          this.updateNav();
+        }
+      }
+
+      createEntryElement(msg) {
+        const entry = document.createElement('div');
+        entry.className = `journal-entry ${msg.role === 'user' ? 'user-text' : 'assistant-text'}`;
+
+        const speaker = document.createElement('span');
+        speaker.className = 'speaker';
+        speaker.textContent = msg.role === 'user' ? 'You' : 'Eevee';
+
+        const timestamp = document.createElement('span');
+        timestamp.className = 'timestamp';
+        timestamp.textContent = msg.time;
+
+        const text = document.createElement('span');
+        text.textContent = ' ' + msg.text;
+
+        entry.appendChild(speaker);
+        entry.appendChild(timestamp);
+        entry.appendChild(text);
+        return entry;
+      }
+
+      // ==========================================
+      // NAVIGATION
+      // ==========================================
+
+      updateNav() {
+        this.prevBtn.disabled = this.currentPage <= 0;
+        this.nextBtn.disabled = this.currentPage >= this.totalPages - 1;
+      }
+
+      goNext() { this.transitionToPage(this.currentPage + 1); }
+      goPrev() { this.transitionToPage(this.currentPage - 1); }
+
+      // ==========================================
+      // EVENTS
+      // ==========================================
+
+      bindEvents() {
+        this.prevBtn.addEventListener('click', () => this.goPrev());
+        this.nextBtn.addEventListener('click', () => this.goNext());
+
+        window.addEventListener('keydown', (e) => {
+          if (e.key === 'ArrowRight' || e.key === 'ArrowDown') this.goNext();
+          if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') this.goPrev();
+        });
+
+        // Swipe support (simple threshold-based)
+        let touchStartX = 0;
+        const area = document.getElementById('journal-area');
+        area.addEventListener('touchstart', (e) => {
+          touchStartX = e.touches[0].clientX;
+        }, { passive: true });
+        area.addEventListener('touchend', (e) => {
+          const dx = e.changedTouches[0].clientX - touchStartX;
+          if (Math.abs(dx) > 60) {
+            if (dx < 0) this.goNext();
+            else this.goPrev();
+          }
+        }, { passive: true });
+
+        // Input
+        const input = document.getElementById('message-input');
+        document.getElementById('send-btn').addEventListener('click', () => this.handleSend());
+        input.addEventListener('keydown', (e) => { if (e.key === 'Enter') this.handleSend(); });
+      }
+
+      handleSend() {
+        const input = document.getElementById('message-input');
+        const text = input.value.trim();
+        if (!text) return;
+        input.value = '';
+
+        // Go to last page first if not there
+        if (this.currentPage !== this.totalPages - 1) {
+          this.transitionToPage(this.totalPages - 1);
+          setTimeout(() => this.addMessage('user', text), 600);
+        } else {
+          this.addMessage('user', text);
+        }
+
+        // Simulated response
+        setTimeout(() => {
+          this.addMessage('assistant',
+            'That\'s a great thought! Let me think about that for a moment... I think the key insight here is that creativity flows best when you give yourself permission to experiment without judgment.'
+          );
+        }, 1200);
+      }
+    }
+
+    // ============================================
+    // INIT
+    // ============================================
+    window.addEventListener('DOMContentLoaded', () => {
+      const journal = new EinkJournal();
+
+      // Trigger initial ink-soak on first page load
+      setTimeout(() => {
+        journal.renderPage(0, true);
+      }, 100);
+
+      // Handle resize
+      let resizeTimer;
+      window.addEventListener('resize', () => {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(() => {
+          journal.paginateMessages(SAMPLE_CONVERSATION);
+          if (journal.currentPage >= journal.totalPages) {
+            journal.currentPage = journal.totalPages - 1;
+          }
+          journal.renderPage(journal.currentPage, false);
+          journal.updateNav();
+        }, 200);
+      });
+    });
+  </script>
+</body>
+</html>

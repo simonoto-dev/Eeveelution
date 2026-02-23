@@ -8,6 +8,10 @@
     ],
     "rewrites": [
       {
+        "source": "/journal",
+        "destination": "/journal-prototype.html"
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }
