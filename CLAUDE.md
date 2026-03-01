@@ -24,7 +24,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | Live site | `https://eeveelution.professoroffunk.com` |
 | Firebase Hosting | `https://eeveelution-3a390.web.app` |
 | Gateway WebSocket (via tunnel) | `wss://eevee.professoroffunk.com/ws` |
-| Gateway dashboard (LAN only) | `http://192.168.4.29:18789/` |
+| Gateway dashboard (LAN only) | `http://192.168.4.28:18789/` |
+| Orchestrator API (via tunnel) | `https://bones.professoroffunk.com` |
 | Firebase console | `https://console.firebase.google.com/project/eeveelution-3a390` |
 
 ### Firestore Config
@@ -33,19 +34,21 @@ Collection `config/{userId}` — three required fields:
 
 | Field | Value | Notes |
 |-------|-------|-------|
-| `wsUrl` | `wss://eevee.professoroffunk.com/ws` | Cloudflare Tunnel to Pi gateway |
-| `gatewayToken` | `0aba4da14cea0e476e1fdc2c63b0cc7e3897738958f6b5f9` | Must match `gateway.auth.token` in Pi's `~/.openclaw/openclaw.json` |
+| `wsUrl` | `wss://eevee.professoroffunk.com/ws` | Cloudflare Tunnel to Mac Mini gateway |
+| `gatewayToken` | `0aba4da14cea0e476e1fdc2c63b0cc7e3897738958f6b5f9` | Must match `gateway.auth.token` in Mac Mini's `~/.openclaw/openclaw.json` |
 | `chatId` | `8231604636` | Telegram chat ID |
 
 **If the gateway token is missing or wrong, the app will fail with "gateway token missing" or "device identity mismatch".** Update via Firebase console.
 
-### Pi (SimonotoPi1)
+### Mac Mini (gateway + orchestrator)
 
-- IP: `192.168.4.29`, user: `simonoto`
-- SSH: `/c/Windows/System32/OpenSSH/ssh.exe simonoto@192.168.4.29` (MUST use Windows OpenSSH, not Git's)
+- IP: `192.168.4.28`, user: `SimonsMac`
+- SSH: `/c/Windows/System32/OpenSSH/ssh.exe SimonsMac@192.168.4.28` (MUST use Windows OpenSSH, not Git's)
+- Shell: **fish** — wrap commands in `bash -c '...'` over SSH
 - Gateway config: `~/.openclaw/openclaw.json`
 - Gateway logs: `/tmp/openclaw/openclaw-YYYY-MM-DD.log`
-- Cloudflare Tunnel config: `~/.cloudflared/config.yml` (routes `eevee.professoroffunk.com` → `127.0.0.1:18789`)
+- Cloudflare Tunnel config: `~/.cloudflared/config.yml` (routes `eevee.professoroffunk.com` → `localhost:18789`, `bones.professoroffunk.com` → `localhost:7070`)
+- Orchestrator: Team Simonoto on port 7070, accessed via Ops tab
 
 ## Architecture
 
@@ -60,9 +63,10 @@ Everything lives in `index.html`. The `<script type="module">` section is organi
 5. **MESSAGE HANDLING** - Streaming message rendering, `handleMessage()`, `sendMessage()` via `chat.send` RPC
 6. **UTILITIES** - `escapeHtml()`, `formatTime()`
 7. **EVENT LISTENERS** - Send button, Enter key, voice input, image input
-8. **AUTH UI** - Login/signout button handlers
-9. **PAIRING UI** - Device pairing screen show/retry logic
-10. **INIT** - `onAuthStateChanged` watcher that orchestrates the startup flow
+8. **AUTH UI** - Login/signout button handlers, theme switching
+9. **TABS** - Bottom nav tab switching, `OPS_API` constant, `opsApi()` fetch helper, `loadOps()`, render functions for status/proposals/brief/deadlines
+10. **PAIRING UI** - Device pairing screen show/retry logic
+11. **INIT** - `onAuthStateChanged` watcher that orchestrates the startup flow
 
 ### Authentication Flow (two layers)
 
