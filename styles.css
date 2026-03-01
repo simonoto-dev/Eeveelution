@@ -39,182 +39,943 @@
   --font-main: 'Quicksand', sans-serif;
 }
 
-/* === JRPG / POKEMON / FINAL FANTASY THEME === */
+/* === JRPG / GOLDEN SUN THEME === */
+/* Inspired by Camelot's Golden Sun (GBA) — deep indigo menus, ornate gold borders */
 .theme-jrpg {
-  --bg-dark: #0a0a12;
-  --bg-card: #12121f;
-  --bg-input: #1a1a2a;
-  --accent: #f5c842;       /* Gold/Yellow like Pokemon */
-  --accent-glow: #ffd700;
-  --accent-secondary: #e74c3c; /* Red like Pokeballs */
-  --text: #f0f0f0;
-  --text-muted: #8a8a9a;
-  --user-bubble: #1e3a5f;  /* Blue like player dialog */
-  --assistant-bubble: #1a1a2a; /* Dark dialogue box */
-  --border: #f0f0f0;
-  --online: #4ade80;
+  --bg-dark: #0c0e24;       /* Deep space indigo */
+  --bg-card: #121638;       /* Menu panel blue */
+  --bg-input: #1a1e48;      /* Lighter indigo */
+  --accent: #e8a820;        /* Golden Sun amber */
+  --accent-glow: #f0c850;   /* Bright gold */
+  --accent-secondary: #d06030; /* Mars Djinn orange-red */
+  --text: #e8e0d0;          /* Warm parchment white */
+  --text-muted: #8088a8;    /* Muted lavender */
+  --user-bubble: #1a2858;   /* Isaac's blue */
+  --assistant-bubble: #141838; /* Deep menu blue */
+  --border: #c8a028;        /* Gold border */
+  --online: #58d878;        /* Venus Djinn green */
   --font-main: 'Courier New', monospace;
-  
-  /* JRPG-specific */
-  --dialogue-border: 4px solid #f0f0f0;
-  --dialogue-radius: 0;
-  --menu-bg: #1a1a2a;
-  --cursor-color: #f5c842;
+
+  /* Golden Sun-specific */
+  --dialogue-border: 3px solid #c8a028;
+  --dialogue-radius: 6px;
+  --menu-bg: #121638;
+  --cursor-color: #e8a820;
 }
 
-/* JRPG Theme Overrides */
-.theme-jrpg body::before {
-  background: 
-    radial-gradient(ellipse at 50% 0%, rgba(245, 200, 66, 0.1) 0%, transparent 50%),
-    radial-gradient(ellipse at 0% 100%, rgba(231, 76, 60, 0.08) 0%, transparent 50%),
-    linear-gradient(180deg, #0a0a12 0%, #0f0f1a 100%);
+/* === JRPG PAPER/AGED DIALOGUE STYLE === */
+/* Full parchment light theme — aged paper, ink, wood frames */
+.theme-jrpg-paper {
+  --bg-dark: #e8dcc8;        /* Warm parchment */
+  --bg-card: #d4c4a8;        /* Darker parchment for header/input */
+  --bg-input: #f2e8d5;       /* Light cream input */
+  --accent: #8b0000;         /* Deep red ink */
+  --accent-glow: #a0522d;    /* Sienna */
+  --accent-secondary: #5c4033; /* Dark wood */
+  --text: #2c1810;           /* Dark brown ink */
+  --text-muted: #7a6652;     /* Faded ink */
+  --user-bubble: #c8e6c9;    /* Soft green — player */
+  --assistant-bubble: #fff8ee; /* Cream white — NPC dialogue */
+  --border: #8b7355;         /* Leather/wood border */
+  --online: #2e7d32;
+  --font-main: 'Courier New', monospace;
 }
 
-.theme-jrpg header {
-  background: linear-gradient(180deg, #1a1a2a 0%, #12121f 100%);
-  border-bottom: var(--dialogue-border);
-  border-bottom-width: 3px;
+/* Paper texture background — visible parchment grain */
+body.theme-jrpg-paper::before {
+  background:
+    url("data:image/svg+xml,%3Csvg width='100' height='100' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.06'/%3E%3C/svg%3E"),
+    repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 28px,
+      rgba(139, 115, 85, 0.08) 28px,
+      rgba(139, 115, 85, 0.08) 29px
+    ),
+    linear-gradient(180deg, #efe3cf 0%, #e0d0b8 40%, #d8c8a8 100%);
+  opacity: 1;
+}
+
+/* Wood-frame header */
+.theme-jrpg-paper header {
+  background:
+    linear-gradient(180deg, #a0845c 0%, #8b7042 50%, #6b5530 100%);
+  border-bottom: 4px solid #4a3520;
   font-family: var(--font-main);
   text-transform: uppercase;
   letter-spacing: 2px;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.15),
+    0 4px 8px rgba(0,0,0,0.4);
+}
+
+.theme-jrpg-paper header h1 {
+  background: linear-gradient(180deg, #fff8dc 0%, #f0e6c0 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  font-family: var(--font-main);
+  font-size: 16px;
+  letter-spacing: 3px;
+}
+
+/* Pixel-style avatar frames */
+.theme-jrpg-paper .avatar {
+  border: 3px solid #4a3520;
+  border-radius: 2px;
+  box-shadow: 3px 3px 0 rgba(0,0,0,0.3), inset 0 0 0 1px rgba(255,255,255,0.1);
+  image-rendering: auto;
+}
+
+.theme-jrpg-paper .avatar.assistant {
+  border-color: #8b0000;
+}
+
+.theme-jrpg-paper .avatar.user {
+  border-color: #2e7d32;
+}
+
+.theme-jrpg-paper .avatar::after {
+  border-color: var(--bg-dark);
+}
+
+/* Dialogue boxes — lined paper inside bubbles */
+.theme-jrpg-paper .bubble {
+  background: var(--assistant-bubble);
+  border: 3px solid #4a3520;
+  border-radius: 2px;
+  box-shadow: 3px 3px 0 rgba(74, 53, 32, 0.35);
+  font-family: var(--font-main);
+  color: var(--text);
+  font-size: 14px;
+  line-height: 22px;
+  padding: 13px 18px 14px;
+  background-image:
+    repeating-linear-gradient(
+      to bottom,
+      transparent,
+      transparent 21px,
+      rgba(139, 115, 85, 0.25) 21px,
+      rgba(139, 115, 85, 0.25) 22px
+    );
+  background-size: 100% 22px;
+  background-position: 0 13px;
+}
+
+.theme-jrpg-paper .bubble p {
+  line-height: 22px;
+}
+
+.theme-jrpg-paper .message.assistant .bubble {
+  border-top-left-radius: 0;
+}
+
+.theme-jrpg-paper .message.user .bubble {
+  background-color: var(--user-bubble);
+  background-image:
+    repeating-linear-gradient(
+      to bottom,
+      transparent,
+      transparent 21px,
+      rgba(46, 89, 48, 0.2) 21px,
+      rgba(46, 89, 48, 0.2) 22px
+    );
+  background-size: 100% 22px;
+  background-position: 0 13px;
+  border-color: #2e5930;
+  border-top-right-radius: 0;
+  box-shadow: 3px 3px 0 rgba(46, 89, 48, 0.3);
+}
+
+/* Wood-frame input bar */
+.theme-jrpg-paper #input-area {
+  background:
+    linear-gradient(180deg, #6b5530 0%, #8b7042 50%, #a0845c 100%);
+  border-top: 4px solid #4a3520;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.theme-jrpg-paper #message-input {
+  background: #fff8ee;
+  border: 3px solid #4a3520;
+  border-radius: 2px;
+  font-family: var(--font-main);
+  color: var(--text);
+  box-shadow: inset 2px 2px 0 rgba(0,0,0,0.08);
+}
+
+.theme-jrpg-paper #message-input:focus {
+  border-color: #8b0000;
+  box-shadow: inset 2px 2px 0 rgba(0,0,0,0.08), 0 0 0 2px rgba(139, 0, 0, 0.2);
+}
+
+.theme-jrpg-paper #message-input::placeholder {
+  color: #a89880;
+  font-style: italic;
+}
+
+.theme-jrpg-paper #send-btn {
+  background: #8b0000;
+  border: 3px solid #4a3520;
+  border-radius: 2px;
+  box-shadow: 3px 3px 0 rgba(0,0,0,0.3);
+  color: #fff8dc;
+}
+
+.theme-jrpg-paper #send-btn:hover {
+  background: #a52a2a;
+  transform: translate(-1px, -1px);
+  box-shadow: 4px 4px 0 rgba(0,0,0,0.3);
+}
+
+.theme-jrpg-paper #send-btn:active {
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0 rgba(0,0,0,0.3);
+}
+
+.theme-jrpg-paper .icon-btn {
+  border-radius: 2px;
+  border: 2px solid #4a3520;
+  background: #f2e8d5;
+  color: #4a3520;
+  box-shadow: 2px 2px 0 rgba(0,0,0,0.2);
+}
+
+.theme-jrpg-paper .icon-btn:hover {
+  background: #e0d0b0;
+  color: #8b0000;
+  transform: translate(-1px, -1px);
+}
+
+/* Status — ink dot */
+.theme-jrpg-paper .status-dot {
+  border-radius: 2px;
+  border: 1px solid #4a3520;
+}
+
+.theme-jrpg-paper .status-dot.connected {
+  background: #2e7d32;
+  box-shadow: 0 0 4px #2e7d32;
+}
+
+.theme-jrpg-paper .status-dot.disconnected {
+  background: #8b0000;
+}
+
+.theme-jrpg-paper .online-badge {
+  color: #fff8dc;
+}
+
+.theme-jrpg-paper #signout-btn {
+  border-color: rgba(255,248,220,0.3);
+  color: #fff8dc;
+}
+
+.theme-jrpg-paper #signout-btn:hover {
+  border-color: #8b0000;
+  color: #ff6b6b;
+}
+
+/* Login — full parchment */
+.theme-jrpg-paper #login-screen {
+  background:
+    repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 28px,
+      rgba(139, 115, 85, 0.06) 28px,
+      rgba(139, 115, 85, 0.06) 29px
+    ),
+    linear-gradient(180deg, #efe3cf 0%, #d8c8a8 100%);
+}
+
+.theme-jrpg-paper #login-screen button {
+  border: 3px solid #4a3520;
+  border-radius: 2px;
+  font-family: var(--font-main);
+  background: #fff8ee;
+  color: #2c1810;
+  box-shadow: 4px 4px 0 rgba(0,0,0,0.25);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.theme-jrpg-paper #login-screen button:hover {
+  background: #8b0000;
+  color: #fff8dc;
+}
+
+.theme-jrpg-paper #pairing-screen {
+  background:
+    repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 28px,
+      rgba(139, 115, 85, 0.06) 28px,
+      rgba(139, 115, 85, 0.06) 29px
+    ),
+    linear-gradient(180deg, #efe3cf 0%, #d8c8a8 100%);
+}
+
+.theme-jrpg-paper #pairing-screen button {
+  border: 3px solid #4a3520;
+  border-radius: 2px;
+  background: #8b0000;
+  color: #fff8dc;
+  font-family: var(--font-main);
+  box-shadow: 4px 4px 0 rgba(0,0,0,0.25);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.theme-jrpg-paper #pairing-screen button:hover {
+  background: #a52a2a;
+}
+
+/* Code blocks — aged paper */
+.theme-jrpg-paper pre {
+  background: #f5ecd8;
+  border: 2px solid #8b7355;
+  border-radius: 2px;
+  font-family: var(--font-main);
+  color: #2c1810;
+  box-shadow: inset 2px 2px 0 rgba(0,0,0,0.05);
+}
+
+.theme-jrpg-paper .time {
+  color: var(--text-muted);
+}
+
+/* Chat area background */
+.theme-jrpg-paper #chat {
+  background:
+    repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 28px,
+      rgba(139, 115, 85, 0.05) 28px,
+      rgba(139, 115, 85, 0.05) 29px
+    );
+}
+
+/* Typing indicator — ink colored */
+.theme-jrpg-paper .typing-indicator span {
+  background: #8b0000;
+}
+
+/* Theme selector in paper style */
+.theme-jrpg-paper .theme-select {
+  background: #fff8ee;
+  border: 2px solid #4a3520;
+  border-color: rgba(255,248,220,0.3);
+  color: #fff8dc;
+  font-family: var(--font-main);
+  background: rgba(255,248,238,0.15);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   PAPER VARIANT 2: FULL PAGE
+   Lines run across the entire chat area like a notebook page.
+   Bubbles are borderless and sit directly on the lines.
+   ═══════════════════════════════════════════════════════════ */
+.theme-jrpg-paper-full {
+  --bg-dark: #f0e6d0;
+  --bg-card: #d4c4a8;
+  --bg-input: #f2e8d5;
+  --accent: #8b0000;
+  --accent-glow: #a0522d;
+  --accent-secondary: #5c4033;
+  --text: #2c1810;
+  --text-muted: #7a6652;
+  --user-bubble: transparent;
+  --assistant-bubble: transparent;
+  --border: #8b7355;
+  --online: #2e7d32;
+  --font-main: 'Courier New', monospace;
+}
+
+body.theme-jrpg-paper-full::before {
+  background:
+    linear-gradient(180deg, #f0e6d0 0%, #e8dcc0 100%);
+  opacity: 1;
+}
+
+/* Full-page ruled lines on chat */
+.theme-jrpg-paper-full #chat {
+  background-image:
+    repeating-linear-gradient(
+      to bottom,
+      transparent,
+      transparent 21px,
+      rgba(139, 115, 85, 0.3) 21px,
+      rgba(139, 115, 85, 0.3) 22px
+    );
+  background-size: 100% 22px;
+  background-attachment: local;
+  /* Left margin red line like a real notebook */
+  border-left: 2px solid rgba(180, 60, 60, 0.3);
+  margin-left: 20px;
+  padding-left: 12px;
+}
+
+/* Borderless bubbles — text floats on the page */
+.theme-jrpg-paper-full .bubble {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  font-family: var(--font-main);
+  color: var(--text);
+  font-size: 14px;
+  line-height: 22px;
+  padding: 0 8px;
+}
+
+.theme-jrpg-paper-full .bubble p {
+  line-height: 22px;
+}
+
+.theme-jrpg-paper-full .message.user .bubble {
+  color: #1a4a8a;
+}
+
+.theme-jrpg-paper-full .message.assistant .bubble {
+  color: var(--text);
+}
+
+/* Minimal avatar styling */
+.theme-jrpg-paper-full .avatar {
+  border: 2px solid #8b7355;
+  border-radius: 2px;
+  box-shadow: 1px 1px 0 rgba(0,0,0,0.15);
+  opacity: 0.85;
+}
+
+.theme-jrpg-paper-full .avatar::after {
+  border-color: var(--bg-dark);
+}
+
+/* Header — simple brown bar */
+.theme-jrpg-paper-full header {
+  background: linear-gradient(180deg, #a0845c 0%, #8b7042 50%, #6b5530 100%);
+  border-bottom: 3px solid #4a3520;
+  font-family: var(--font-main);
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+}
+
+.theme-jrpg-paper-full header h1 {
+  background: linear-gradient(180deg, #fff8dc 0%, #f0e6c0 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  font-family: var(--font-main);
+  font-size: 16px;
+}
+
+/* Input bar */
+.theme-jrpg-paper-full #input-area {
+  background: linear-gradient(180deg, #6b5530 0%, #8b7042 50%, #a0845c 100%);
+  border-top: 3px solid #4a3520;
+}
+
+.theme-jrpg-paper-full #message-input {
+  background: #fff8ee;
+  border: 2px solid #4a3520;
+  border-radius: 2px;
+  font-family: var(--font-main);
+  color: var(--text);
+  line-height: 22px;
+}
+
+.theme-jrpg-paper-full #message-input:focus {
+  border-color: #8b0000;
+  box-shadow: 0 0 0 2px rgba(139, 0, 0, 0.2);
+}
+
+.theme-jrpg-paper-full #message-input::placeholder {
+  color: #a89880;
+  font-style: italic;
+}
+
+.theme-jrpg-paper-full #send-btn {
+  background: #8b0000;
+  border: 2px solid #4a3520;
+  border-radius: 2px;
+  box-shadow: 2px 2px 0 rgba(0,0,0,0.2);
+  color: #fff8dc;
+}
+
+.theme-jrpg-paper-full .icon-btn {
+  border-radius: 2px;
+  border: 2px solid #4a3520;
+  background: #f2e8d5;
+  color: #4a3520;
+}
+
+.theme-jrpg-paper-full .status-dot { border-radius: 2px; }
+.theme-jrpg-paper-full .status-dot.connected { background: #2e7d32; box-shadow: 0 0 4px #2e7d32; }
+.theme-jrpg-paper-full .online-badge { color: #fff8dc; }
+.theme-jrpg-paper-full #signout-btn { border-color: rgba(255,248,220,0.3); color: #fff8dc; }
+
+.theme-jrpg-paper-full #login-screen,
+.theme-jrpg-paper-full #pairing-screen {
+  background: linear-gradient(180deg, #f0e6d0 0%, #e0d0b8 100%);
+}
+
+.theme-jrpg-paper-full #login-screen button,
+.theme-jrpg-paper-full #pairing-screen button {
+  border: 3px solid #4a3520;
+  border-radius: 2px;
+  font-family: var(--font-main);
+  background: #fff8ee;
+  color: #2c1810;
+  box-shadow: 3px 3px 0 rgba(0,0,0,0.2);
+  text-transform: uppercase;
+}
+
+.theme-jrpg-paper-full #login-screen button:hover,
+.theme-jrpg-paper-full #pairing-screen button:hover {
+  background: #8b0000;
+  color: #fff8dc;
+}
+
+.theme-jrpg-paper-full pre {
+  background: rgba(245, 236, 216, 0.5);
+  border: 1px solid #8b7355;
+  border-radius: 0;
+  font-family: var(--font-main);
+  color: #2c1810;
+}
+
+.theme-jrpg-paper-full .time { color: #a89880; }
+.theme-jrpg-paper-full .typing-indicator span { background: #8b0000; }
+
+.theme-jrpg-paper-full .theme-select {
+  background: rgba(255,248,238,0.15);
+  border-color: rgba(255,248,220,0.3);
+  color: #fff8dc;
+  font-family: var(--font-main);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   PAPER VARIANT 3: BLEEDTHROUGH
+   Lines on the chat background bleed through semi-transparent
+   bubbles. Everything feels like one continuous sheet.
+   ═══════════════════════════════════════════════════════════ */
+.theme-jrpg-paper-bleed {
+  --bg-dark: #e8dcc8;
+  --bg-card: #d4c4a8;
+  --bg-input: #f2e8d5;
+  --accent: #8b0000;
+  --accent-glow: #a0522d;
+  --accent-secondary: #5c4033;
+  --text: #2c1810;
+  --text-muted: #7a6652;
+  --user-bubble: rgba(200, 220, 200, 0.45);
+  --assistant-bubble: rgba(255, 252, 242, 0.5);
+  --border: #8b7355;
+  --online: #2e7d32;
+  --font-main: 'Courier New', monospace;
+}
+
+body.theme-jrpg-paper-bleed::before {
+  background: linear-gradient(180deg, #efe3cf 0%, #e0d0b8 40%, #d8c8a8 100%);
+  opacity: 1;
+}
+
+/* Ruled lines on the whole chat — bubbles are translucent */
+.theme-jrpg-paper-bleed #chat {
+  background-image:
+    repeating-linear-gradient(
+      to bottom,
+      transparent,
+      transparent 21px,
+      rgba(139, 115, 85, 0.25) 21px,
+      rgba(139, 115, 85, 0.25) 22px
+    );
+  background-size: 100% 22px;
+  background-attachment: local;
+}
+
+/* Translucent bubbles — lines show through */
+.theme-jrpg-paper-bleed .bubble {
+  background: var(--assistant-bubble);
+  border: 2px solid rgba(74, 53, 32, 0.25);
+  border-radius: 4px;
+  box-shadow: 1px 1px 3px rgba(0,0,0,0.08);
+  font-family: var(--font-main);
+  color: var(--text);
+  font-size: 14px;
+  line-height: 22px;
+  backdrop-filter: blur(1px);
+}
+
+.theme-jrpg-paper-bleed .bubble p {
+  line-height: 22px;
+}
+
+.theme-jrpg-paper-bleed .message.assistant .bubble {
+  border-top-left-radius: 0;
+}
+
+.theme-jrpg-paper-bleed .message.user .bubble {
+  background: var(--user-bubble);
+  border-color: rgba(46, 89, 48, 0.3);
+  border-top-right-radius: 0;
+}
+
+/* Avatar */
+.theme-jrpg-paper-bleed .avatar {
+  border: 2px solid rgba(74, 53, 32, 0.4);
+  border-radius: 4px;
+  box-shadow: 1px 1px 3px rgba(0,0,0,0.15);
+}
+
+.theme-jrpg-paper-bleed .avatar::after {
+  border-color: var(--bg-dark);
+}
+
+/* Header */
+.theme-jrpg-paper-bleed header {
+  background: linear-gradient(180deg, #a0845c 0%, #8b7042 50%, #6b5530 100%);
+  border-bottom: 3px solid #4a3520;
+  font-family: var(--font-main);
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.15), 0 3px 8px rgba(0,0,0,0.3);
+}
+
+.theme-jrpg-paper-bleed header h1 {
+  background: linear-gradient(180deg, #fff8dc 0%, #f0e6c0 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  font-family: var(--font-main);
+  font-size: 16px;
+}
+
+/* Input */
+.theme-jrpg-paper-bleed #input-area {
+  background: linear-gradient(180deg, #6b5530 0%, #8b7042 50%, #a0845c 100%);
+  border-top: 3px solid #4a3520;
+}
+
+.theme-jrpg-paper-bleed #message-input {
+  background: rgba(255, 248, 238, 0.8);
+  border: 2px solid #4a3520;
+  border-radius: 2px;
+  font-family: var(--font-main);
+  color: var(--text);
+  line-height: 22px;
+}
+
+.theme-jrpg-paper-bleed #message-input:focus {
+  border-color: #8b0000;
+  box-shadow: 0 0 0 2px rgba(139, 0, 0, 0.2);
+}
+
+.theme-jrpg-paper-bleed #message-input::placeholder {
+  color: #a89880;
+  font-style: italic;
+}
+
+.theme-jrpg-paper-bleed #send-btn {
+  background: #8b0000;
+  border: 2px solid #4a3520;
+  border-radius: 2px;
+  box-shadow: 2px 2px 0 rgba(0,0,0,0.2);
+  color: #fff8dc;
+}
+
+.theme-jrpg-paper-bleed .icon-btn {
+  border-radius: 2px;
+  border: 2px solid #4a3520;
+  background: rgba(242, 232, 213, 0.8);
+  color: #4a3520;
+}
+
+.theme-jrpg-paper-bleed .status-dot { border-radius: 2px; }
+.theme-jrpg-paper-bleed .status-dot.connected { background: #2e7d32; box-shadow: 0 0 4px #2e7d32; }
+.theme-jrpg-paper-bleed .online-badge { color: #fff8dc; }
+.theme-jrpg-paper-bleed #signout-btn { border-color: rgba(255,248,220,0.3); color: #fff8dc; }
+
+.theme-jrpg-paper-bleed #login-screen,
+.theme-jrpg-paper-bleed #pairing-screen {
+  background: linear-gradient(180deg, #efe3cf 0%, #d8c8a8 100%);
+}
+
+.theme-jrpg-paper-bleed #login-screen button,
+.theme-jrpg-paper-bleed #pairing-screen button {
+  border: 3px solid #4a3520;
+  border-radius: 2px;
+  font-family: var(--font-main);
+  background: #fff8ee;
+  color: #2c1810;
+  box-shadow: 3px 3px 0 rgba(0,0,0,0.2);
+  text-transform: uppercase;
+}
+
+.theme-jrpg-paper-bleed #login-screen button:hover,
+.theme-jrpg-paper-bleed #pairing-screen button:hover {
+  background: #8b0000;
+  color: #fff8dc;
+}
+
+.theme-jrpg-paper-bleed pre {
+  background: rgba(245, 236, 216, 0.6);
+  border: 1px solid rgba(139, 115, 85, 0.4);
+  border-radius: 2px;
+  font-family: var(--font-main);
+  color: #2c1810;
+}
+
+.theme-jrpg-paper-bleed .time { color: #a89880; }
+.theme-jrpg-paper-bleed .typing-indicator span { background: #8b0000; }
+
+.theme-jrpg-paper-bleed .theme-select {
+  background: rgba(255,248,238,0.15);
+  border-color: rgba(255,248,220,0.3);
+  color: #fff8dc;
+  font-family: var(--font-main);
+}
+
+/* Golden Sun Theme Overrides */
+body.theme-jrpg::before {
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(232, 168, 32, 0.12) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 80%, rgba(88, 216, 120, 0.06) 0%, transparent 40%),
+    radial-gradient(ellipse at 10% 90%, rgba(208, 96, 48, 0.06) 0%, transparent 40%),
+    linear-gradient(180deg, #0c0e24 0%, #08091a 100%);
+}
+
+/* Header — ornate gold-trimmed bar */
+.theme-jrpg header {
+  background:
+    linear-gradient(180deg, #1a1e48 0%, #121638 60%, #0e1030 100%);
+  border-bottom: 3px solid #c8a028;
+  font-family: var(--font-main);
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  box-shadow:
+    inset 0 -1px 0 rgba(200, 160, 40, 0.3),
+    inset 0 1px 0 rgba(200, 160, 40, 0.15),
+    0 4px 12px rgba(0,0,0,0.5);
 }
 
 .theme-jrpg header h1 {
-  background: linear-gradient(180deg, #f5c842 0%, #e67e22 100%);
+  background: linear-gradient(180deg, #f0d060 0%, #e8a820 50%, #c08018 100%);
   -webkit-background-clip: text;
   background-clip: text;
+  -webkit-text-fill-color: transparent;
   font-family: var(--font-main);
   font-size: 16px;
-  text-shadow: 2px 2px 0 #000;
+  letter-spacing: 3px;
 }
 
+/* Avatar — gold-framed portraits */
 .theme-jrpg .avatar {
-  border: 3px solid #f0f0f0;
-  border-radius: 0;
-  image-rendering: pixelated;
-  box-shadow: 4px 4px 0 #000;
+  border: 3px solid #c8a028;
+  border-radius: 4px;
+  box-shadow:
+    0 0 0 1px rgba(0,0,0,0.5),
+    0 0 8px rgba(200, 160, 40, 0.2),
+    3px 3px 0 rgba(0,0,0,0.4);
 }
 
 .theme-jrpg .avatar.assistant {
-  border-color: #f5c842;
+  border-color: #e8a820;
 }
 
 .theme-jrpg .avatar.user {
-  border-color: #3498db;
+  border-color: #58d878;
 }
 
-/* JRPG Dialogue Boxes */
+/* Dialogue boxes — Golden Sun menu style with gold borders and inner glow */
 .theme-jrpg .bubble {
-  background: #1a1a2a;
-  border: 3px solid #f0f0f0;
-  border-radius: 0;
-  box-shadow: 4px 4px 0 #000;
+  background:
+    linear-gradient(180deg, #181c42 0%, #121638 100%);
+  border: 2px solid #c8a028;
+  border-radius: 6px;
+  box-shadow:
+    0 0 0 1px rgba(0,0,0,0.6),
+    inset 0 1px 0 rgba(200, 160, 40, 0.1),
+    inset 0 0 12px rgba(12, 14, 36, 0.8),
+    3px 3px 0 rgba(0,0,0,0.3);
   font-family: var(--font-main);
   position: relative;
 }
 
 .theme-jrpg .message.assistant .bubble {
-  border-top-left-radius: 0;
+  border-top-left-radius: 2px;
 }
 
 .theme-jrpg .message.user .bubble {
-  border-top-right-radius: 0;
+  background:
+    linear-gradient(180deg, #1a2858 0%, #162048 100%);
+  border-color: #58d878;
+  border-top-right-radius: 2px;
+  box-shadow:
+    0 0 0 1px rgba(0,0,0,0.6),
+    inset 0 1px 0 rgba(88, 216, 120, 0.1),
+    inset 0 0 12px rgba(12, 14, 36, 0.8),
+    3px 3px 0 rgba(0,0,0,0.3);
 }
 
-/* JRPG Menu Cursor */
+/* Menu cursor — Golden Sun hand pointer */
 .theme-jrpg .message::before {
-  content: '▶';
+  content: '☞';
   position: absolute;
-  left: -20px;
+  left: -22px;
   color: var(--cursor-color);
-  font-size: 12px;
+  font-size: 14px;
   opacity: 0;
   transition: opacity 0.2s;
+  text-shadow: 0 0 4px rgba(232, 168, 32, 0.6);
 }
 
 .theme-jrpg .message:hover::before {
   opacity: 1;
 }
 
-/* JRPG Input Area */
+/* Input — dark panel with gold trim */
 .theme-jrpg #input-area {
-  background: #1a1a2a;
-  border-top: 3px solid #f0f0f0;
+  background:
+    linear-gradient(180deg, #0e1030 0%, #121638 50%, #1a1e48 100%);
+  border-top: 3px solid #c8a028;
+  box-shadow:
+    inset 0 1px 0 rgba(200, 160, 40, 0.15),
+    0 -4px 12px rgba(0,0,0,0.3);
 }
 
 .theme-jrpg #message-input {
-  background: #0a0a12;
-  border: 3px solid #f0f0f0;
-  border-radius: 0;
+  background: #0c0e24;
+  border: 2px solid #c8a028;
+  border-radius: 4px;
   font-family: var(--font-main);
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.4);
+}
+
+.theme-jrpg #message-input:focus {
+  border-color: #f0d060;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.4), 0 0 6px rgba(232, 168, 32, 0.3);
 }
 
 .theme-jrpg #send-btn {
-  background: #e74c3c;
-  border: 3px solid #f0f0f0;
-  border-radius: 0;
-  box-shadow: 3px 3px 0 #000;
+  background: linear-gradient(180deg, #e8a820 0%, #c08018 100%);
+  border: 2px solid #a07010;
+  border-radius: 4px;
+  box-shadow: 2px 2px 0 rgba(0,0,0,0.4);
+  color: #0c0e24;
+}
+
+.theme-jrpg #send-btn:hover {
+  background: linear-gradient(180deg, #f0d060 0%, #e8a820 100%);
+  transform: translate(-1px, -1px);
+  box-shadow: 3px 3px 0 rgba(0,0,0,0.4);
 }
 
 .theme-jrpg .icon-btn {
-  border-radius: 0;
-  border: 2px solid #f0f0f0;
-  background: #1a1a2a;
+  border-radius: 4px;
+  border: 2px solid #c8a028;
+  background: #121638;
+  color: #c8a028;
 }
 
-/* JRPG Status Dot - Pokeball style */
+.theme-jrpg .icon-btn:hover {
+  background: #1a1e48;
+  color: #f0d060;
+  box-shadow: 0 0 6px rgba(232, 168, 32, 0.2);
+}
+
+/* Status — Djinn orb */
 .theme-jrpg .status-dot {
-  border-radius: 0;
-  border: 2px solid #f0f0f0;
+  border-radius: 50%;
+  border: 1px solid #c8a028;
 }
 
 .theme-jrpg .status-dot.connected {
-  background: 
-    linear-gradient(135deg, #e74c3c 50%, #f0f0f0 50%, #f0f0f0 55%, #3498db 55%);
+  background: radial-gradient(circle at 40% 35%, #90f0a0 0%, #58d878 50%, #38a858 100%);
+  box-shadow: 0 0 8px rgba(88, 216, 120, 0.5);
 }
 
-/* JRPG Login Screen */
+.theme-jrpg #signout-btn {
+  border-color: rgba(200, 160, 40, 0.3);
+  color: #8088a8;
+}
+
+.theme-jrpg #signout-btn:hover {
+  border-color: #d06030;
+  color: #d06030;
+}
+
+/* Login — deep space with gold accents */
 .theme-jrpg #login-screen {
-  background: #0a0a12;
+  background:
+    radial-gradient(ellipse at 50% 40%, rgba(232, 168, 32, 0.08) 0%, transparent 60%),
+    linear-gradient(180deg, #0c0e24 0%, #08091a 100%);
 }
 
 .theme-jrpg #login-screen button {
-  border: 3px solid #f0f0f0;
-  border-radius: 0;
+  border: 2px solid #c8a028;
+  border-radius: 6px;
   font-family: var(--font-main);
   text-transform: uppercase;
-  box-shadow: 4px 4px 0 #000;
+  letter-spacing: 1px;
+  background: linear-gradient(180deg, #1a1e48 0%, #121638 100%);
+  color: #e8e0d0;
+  box-shadow:
+    0 0 0 1px rgba(0,0,0,0.5),
+    3px 3px 0 rgba(0,0,0,0.3);
 }
 
 .theme-jrpg #login-screen button:hover {
-  background: #f5c842;
-  color: #000;
+  background: linear-gradient(180deg, #e8a820 0%, #c08018 100%);
+  color: #0c0e24;
+  border-color: #f0d060;
 }
 
-/* JRPG Pairing Screen */
+/* Pairing */
 .theme-jrpg #pairing-screen {
-  background: #0a0a12;
+  background:
+    radial-gradient(ellipse at 50% 40%, rgba(232, 168, 32, 0.08) 0%, transparent 60%),
+    linear-gradient(180deg, #0c0e24 0%, #08091a 100%);
 }
 
 .theme-jrpg #pairing-screen button {
-  border: 3px solid #f0f0f0;
-  border-radius: 0;
-  background: #e74c3c;
-  color: #f0f0f0;
+  border: 2px solid #c8a028;
+  border-radius: 6px;
+  background: linear-gradient(180deg, #e8a820 0%, #c08018 100%);
+  color: #0c0e24;
   font-family: var(--font-main);
   text-transform: uppercase;
-  box-shadow: 4px 4px 0 #000;
+  letter-spacing: 1px;
+  box-shadow: 3px 3px 0 rgba(0,0,0,0.3);
 }
 
 .theme-jrpg #pairing-screen button:hover {
-  background: #f5c842;
-  color: #000;
+  background: linear-gradient(180deg, #f0d060 0%, #e8a820 100%);
 }
 
 .theme-jrpg pre {
-  background: #0a0a12;
-  border: 2px solid #f0f0f0;
-  border-radius: 0;
+  background: #0c0e24;
+  border: 2px solid rgba(200, 160, 40, 0.4);
+  border-radius: 4px;
+  font-family: var(--font-main);
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.3);
+}
+
+/* Typing indicator — golden pulse */
+.theme-jrpg .typing-indicator span {
+  background: #e8a820;
+}
+
+/* Theme selector */
+.theme-jrpg .theme-select {
+  background: rgba(200, 160, 40, 0.12);
+  border-color: rgba(200, 160, 40, 0.3);
+  color: #c8a028;
   font-family: var(--font-main);
 }
 
@@ -628,4 +1389,291 @@ header h1 {
 }
 #pairing-screen.visible {
   display: flex;
+}
+
+/* ============================================
+   TAB CONTENT
+   ============================================ */
+.tab-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ============================================
+   BOTTOM NAV
+   ============================================ */
+#bottom-nav {
+  display: flex;
+  border-top: 1px solid var(--border);
+  background: var(--bg-card);
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.nav-tab {
+  flex: 1;
+  padding: 12px 0;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.2s, background 0.2s;
+}
+
+.nav-tab.active {
+  color: var(--accent);
+  background: var(--bg-input);
+}
+
+/* ============================================
+   OPS TAB
+   ============================================ */
+#ops-tab {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+}
+
+.ops-section {
+  margin-bottom: 20px;
+}
+
+.ops-section-title {
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+}
+
+/* Status bar */
+.ops-status-bar {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.ops-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  border: 1px solid var(--border);
+  background: var(--bg-input);
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.ops-pill:active {
+  background: var(--accent);
+  color: white;
+}
+
+.ops-pill.pace-full { border-color: #22c55e; }
+.ops-pill.pace-slow { border-color: #eab308; }
+.ops-pill.pace-pause { border-color: #f97316; }
+.ops-pill.pace-stop { border-color: #ef4444; }
+.ops-pill.mode-awake { border-color: #22c55e; }
+.ops-pill.mode-sleep { border-color: #6366f1; }
+
+/* Budget bar */
+.ops-budget {
+  height: 6px;
+  background: var(--bg-input);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 4px;
+}
+
+.ops-budget-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 3px;
+  transition: width 0.3s;
+}
+
+.ops-budget-label {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* Proposal cards */
+.ops-proposal {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px;
+  margin-bottom: 10px;
+}
+
+.ops-proposal-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+.ops-proposal-meta {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.ops-proposal-body {
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin-bottom: 12px;
+  display: none;
+}
+
+.ops-proposal-body.expanded {
+  display: block;
+}
+
+.ops-proposal-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.ops-btn {
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ops-btn.approve {
+  background: #166534;
+  border-color: #22c55e;
+  color: #bbf7d0;
+}
+
+.ops-btn.reject {
+  background: #7f1d1d;
+  border-color: #ef4444;
+  color: #fecaca;
+}
+
+.ops-btn.expand {
+  background: none;
+  border: none;
+  color: var(--accent);
+  padding: 0;
+  font-size: 12px;
+}
+
+/* Brief section */
+.ops-brief {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px;
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+/* Deadline items */
+.ops-deadline {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+
+.ops-deadline:last-child {
+  border-bottom: none;
+}
+
+.ops-deadline-title {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.ops-deadline-date {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+/* Empty state */
+.ops-empty {
+  text-align: center;
+  padding: 24px;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+/* Refresh button */
+.ops-refresh {
+  display: block;
+  width: 100%;
+  padding: 10px;
+  margin-top: 12px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+/* Paper theme overrides for ops tab */
+.theme-jrpg-paper #bottom-nav,
+.theme-jrpg-paper-full #bottom-nav,
+.theme-jrpg-paper-bleed #bottom-nav {
+  background: #f5f0e8;
+  border-top-color: #d4c5a9;
+}
+
+.theme-jrpg-paper .nav-tab,
+.theme-jrpg-paper-full .nav-tab,
+.theme-jrpg-paper-bleed .nav-tab {
+  color: #8b7355;
+}
+
+.theme-jrpg-paper .nav-tab.active,
+.theme-jrpg-paper-full .nav-tab.active,
+.theme-jrpg-paper-bleed .nav-tab.active {
+  color: #2c1810;
+  background: #ebe3d3;
+}
+
+.theme-jrpg-paper .ops-pill,
+.theme-jrpg-paper-full .ops-pill,
+.theme-jrpg-paper-bleed .ops-pill {
+  background: #ebe3d3;
+  border-color: #d4c5a9;
+  color: #2c1810;
+}
+
+.theme-jrpg-paper .ops-proposal,
+.theme-jrpg-paper .ops-brief,
+.theme-jrpg-paper-full .ops-proposal,
+.theme-jrpg-paper-full .ops-brief,
+.theme-jrpg-paper-bleed .ops-proposal,
+.theme-jrpg-paper-bleed .ops-brief {
+  background: #ebe3d3;
+  border-color: #d4c5a9;
+  color: #2c1810;
 }

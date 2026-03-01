@@ -62,35 +62,52 @@
         </div>
         <select id="theme-select" class="theme-select" title="Change theme">
           <option value="anime">Anime</option>
-          <option value="jrpg">JRPG</option>
+          <option value="jrpg">Golden Sun</option>
+          <option value="jrpg-paper">Paper: Lined Bubbles</option>
+          <option value="jrpg-paper-full">Paper: Full Page</option>
+          <option value="jrpg-paper-bleed">Paper: Bleedthrough</option>
         </select>
         <button id="signout-btn">Sign out</button>
       </div>
     </header>
 
-    <div id="chat">
-      <div id="loading">✨ Summoning Eevee...</div>
-    </div>
-
-    <div id="input-area">
-      <div class="input-buttons">
-        <button class="icon-btn" id="image-btn" title="Send image">🖼️</button>
-        <button class="icon-btn" id="voice-btn" title="Voice message">🎤</button>
+    <div id="chat-tab" class="tab-content">
+      <div id="chat">
+        <div id="loading">✨ Summoning Eevee...</div>
       </div>
-      <input type="text" id="message-input" placeholder="Message Eevee..." autocomplete="off">
-      <button id="send-btn">➤</button>
+
+      <div id="input-area">
+        <div class="input-buttons">
+          <button class="icon-btn" id="image-btn" title="Send image">🖼️</button>
+          <button class="icon-btn" id="voice-btn" title="Voice message">🎤</button>
+        </div>
+        <input type="text" id="message-input" placeholder="Message Eevee..." autocomplete="off">
+        <button id="send-btn">➤</button>
+      </div>
+
+      <input type="file" id="file-input" accept="image/*" style="display: none;">
     </div>
 
-    <input type="file" id="file-input" accept="image/*" style="display: none;">
+    <!-- Ops Tab (hidden by default) -->
+    <div id="ops-tab" class="tab-content" style="display: none;">
+      <div id="ops-loading" style="text-align: center; padding: 40px; color: var(--text-muted);">Loading ops...</div>
+      <div id="ops-content" style="display: none;"></div>
+    </div>
+
+    <!-- Bottom Nav -->
+    <nav id="bottom-nav">
+      <button class="nav-tab active" data-tab="chat">💬 Chat</button>
+      <button class="nav-tab" data-tab="ops">📋 Ops</button>
+    </nav>
   </div>
 
   <script type="module">
     // ============================================
     // FIREBASE & AUTH
     // ============================================
-    import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.4.0/firebase-app.js';
-    import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/11.4.0/firebase-auth.js';
-    import { getFirestore, doc, getDoc } from 'https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore.js';
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
+    import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
+    import { getFirestore, doc, getDoc } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
 
     const firebaseConfig = {
       apiKey: "AIzaSyCntodkV9WMDQOPaSUWH-VuURXWFj38erM",
@@ -879,9 +896,9 @@
 
     // Theme switching
     function setTheme(theme) {
-      document.body.classList.remove('theme-anime', 'theme-jrpg');
-      if (theme === 'jrpg') {
-        document.body.classList.add('theme-jrpg');
+      document.body.classList.remove('theme-anime', 'theme-jrpg', 'theme-jrpg-paper', 'theme-jrpg-paper-full', 'theme-jrpg-paper-bleed');
+      if (theme !== 'anime') {
+        document.body.classList.add('theme-' + theme);
       }
       localStorage.setItem('eevee.theme', theme);
       themeSelect.value = theme;
@@ -894,6 +911,210 @@
     themeSelect.addEventListener('change', (e) => {
       setTheme(e.target.value);
     });
+
+    // ============================================
+    // TABS
+    // ============================================
+    const OPS_API = 'https://bones.professoroffunk.com';
+
+    document.querySelectorAll('.nav-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        const target = tab.dataset.tab;
+        document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        document.querySelectorAll('.tab-content').forEach(c => c.style.display = 'none');
+        document.getElementById(target + '-tab').style.display = '';
+        if (target === 'ops') loadOps();
+      });
+    });
+
+    async function opsApi(path, options = {}) {
+      try {
+        const res = await fetch(OPS_API + path, {
+          method: options.method || 'GET',
+          headers: { 'Content-Type': 'application/json' },
+          body: options.body ? JSON.stringify(options.body) : undefined,
+        });
+        return await res.json();
+      } catch (err) {
+        console.error('Ops API error:', err);
+        return null;
+      }
+    }
+
+    async function loadOps() {
+      const content = document.getElementById('ops-content');
+      const loading = document.getElementById('ops-loading');
+      loading.style.display = '';
+      content.style.display = 'none';
+
+      const [status, proposals, brief, deadlines, executor] = await Promise.all([
+        opsApi('/status'),
+        opsApi('/proposals?status=pending&limit=20'),
+        opsApi('/brief'),
+        opsApi('/deadlines?days=30'),
+        opsApi('/executor/status'),
+      ]);
+
+      loading.style.display = 'none';
+      content.style.display = '';
+      content.innerHTML = '';
+
+      if (!status) {
+        content.innerHTML = '<div class="ops-empty">Could not reach orchestrator</div>';
+        return;
+      }
+
+      content.appendChild(renderStatusBar(status, executor));
+      content.appendChild(renderProposals(proposals));
+      content.appendChild(renderBrief(brief));
+      content.appendChild(renderDeadlines(deadlines));
+      content.appendChild(renderRefreshBtn());
+    }
+
+    function renderStatusBar(status, executor) {
+      const section = document.createElement('div');
+      section.className = 'ops-section';
+
+      const paceClass = 'pace-' + status.pace;
+      const modeClass = 'mode-' + status.mode;
+      const budgetPct = status.budget ? Math.round((status.budget.spent / status.budget.ceiling) * 100) : 0;
+      const executorDot = executor?.connected ? '🟢' : '🔴';
+
+      section.innerHTML = `
+        <div class="ops-status-bar">
+          <button class="ops-pill ${paceClass}" id="ops-pace-btn" title="Tap to change pace">⚡ ${status.pace}</button>
+          <button class="ops-pill ${modeClass}" id="ops-mode-btn" title="Tap to toggle mode">${status.mode === 'awake' ? '☀️' : '🌙'} ${status.mode}</button>
+          <span class="ops-pill">${executorDot} executor</span>
+        </div>
+        <div class="ops-budget"><div class="ops-budget-fill" style="width: ${budgetPct}%"></div></div>
+        <div class="ops-budget-label">Budget: $${status.budget?.spent?.toFixed(2) || '0'} / $${status.budget?.ceiling || '50'}</div>
+      `;
+
+      // Pace cycling
+      const paces = ['full', 'slow', 'pause', 'stop'];
+      section.querySelector('#ops-pace-btn').addEventListener('click', async () => {
+        const next = paces[(paces.indexOf(status.pace) + 1) % paces.length];
+        if (confirm('Set pace to ' + next + '?')) {
+          await opsApi('/pace', { method: 'POST', body: { pace: next } });
+          loadOps();
+        }
+      });
+
+      // Mode toggle
+      section.querySelector('#ops-mode-btn').addEventListener('click', async () => {
+        const next = status.mode === 'awake' ? 'sleep' : 'awake';
+        if (confirm('Set mode to ' + next + '?')) {
+          await opsApi('/mode', { method: 'POST', body: { mode: next } });
+          loadOps();
+        }
+      });
+
+      return section;
+    }
+
+    function renderProposals(proposals) {
+      const section = document.createElement('div');
+      section.className = 'ops-section';
+
+      const items = Array.isArray(proposals) ? proposals : [];
+      section.innerHTML = `<div class="ops-section-title">Proposals (${items.length} pending)</div>`;
+
+      if (items.length === 0) {
+        section.innerHTML += '<div class="ops-empty">No pending proposals</div>';
+        return section;
+      }
+
+      items.forEach(p => {
+        const card = document.createElement('div');
+        card.className = 'ops-proposal';
+        card.innerHTML = `
+          <div class="ops-proposal-title">${escapeHtml(p.title)}</div>
+          <div class="ops-proposal-meta">${escapeHtml(p.domain)} · ${escapeHtml(p.effort || 'unknown')} · ${escapeHtml(p.recommendation || '')}</div>
+          <button class="ops-btn expand" data-id="${p.id}">Show details</button>
+          <div class="ops-proposal-body" id="ops-body-${p.id}">${escapeHtml(p.body)}</div>
+          <div class="ops-proposal-actions">
+            <button class="ops-btn approve" data-id="${p.id}">Approve</button>
+            <button class="ops-btn reject" data-id="${p.id}">Reject</button>
+          </div>
+        `;
+
+        card.querySelector('.ops-btn.expand').addEventListener('click', (e) => {
+          const body = card.querySelector('.ops-proposal-body');
+          body.classList.toggle('expanded');
+          e.target.textContent = body.classList.contains('expanded') ? 'Hide details' : 'Show details';
+        });
+
+        card.querySelector('.ops-btn.approve').addEventListener('click', async () => {
+          await opsApi('/proposals/' + p.id + '/resolve', {
+            method: 'POST',
+            body: { status: 'greenlit' },
+          });
+          loadOps();
+        });
+
+        card.querySelector('.ops-btn.reject').addEventListener('click', async () => {
+          await opsApi('/proposals/' + p.id + '/resolve', {
+            method: 'POST',
+            body: { status: 'rejected' },
+          });
+          loadOps();
+        });
+
+        section.appendChild(card);
+      });
+
+      return section;
+    }
+
+    function renderBrief(brief) {
+      const section = document.createElement('div');
+      section.className = 'ops-section';
+      section.innerHTML = '<div class="ops-section-title">Morning Brief</div>';
+
+      if (!brief) {
+        section.innerHTML += '<div class="ops-empty">No brief available</div>';
+        return section;
+      }
+
+      const text = typeof brief === 'string' ? brief : JSON.stringify(brief, null, 2);
+      section.innerHTML += `<div class="ops-brief">${escapeHtml(text)}</div>`;
+      return section;
+    }
+
+    function renderDeadlines(deadlines) {
+      const section = document.createElement('div');
+      section.className = 'ops-section';
+
+      const items = Array.isArray(deadlines) ? deadlines : [];
+      section.innerHTML = '<div class="ops-section-title">Upcoming Deadlines</div>';
+
+      if (items.length === 0) {
+        section.innerHTML += '<div class="ops-empty">No upcoming deadlines</div>';
+        return section;
+      }
+
+      items.forEach(d => {
+        const div = document.createElement('div');
+        div.className = 'ops-deadline';
+        const daysLeft = d.daysUntil != null ? d.daysUntil + 'd' : '';
+        div.innerHTML = `
+          <span class="ops-deadline-title">${escapeHtml(d.title)}</span>
+          <span class="ops-deadline-date">${escapeHtml(d.date || '')} ${daysLeft}</span>
+        `;
+        section.appendChild(div);
+      });
+
+      return section;
+    }
+
+    function renderRefreshBtn() {
+      const btn = document.createElement('button');
+      btn.className = 'ops-refresh';
+      btn.textContent = '↻ Refresh';
+      btn.addEventListener('click', loadOps);
+      return btn;
+    }
 
     let currentUser = null;
 
