@@ -1867,3 +1867,285 @@ header h1 {
   .avatar { width: 28px; height: 28px; border-radius: 50% !important; }
   #message-input { padding: 8px 12px; font-size: 14px; }
 }
+
+/* ============================================
+   TERMINAL TAB
+   ============================================ */
+#term-tab {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+}
+
+#term-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.term-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  overflow: hidden;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  border: 2px solid var(--accent);
+}
+
+.term-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.term-status {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.term-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  font-family: var(--font-main, 'Quicksand', sans-serif);
+}
+
+.term-connection {
+  font-size: 11px;
+  color: var(--text-muted);
+  transition: color 0.3s;
+}
+
+#term-container {
+  flex: 1;
+  padding: 4px;
+  background: var(--bg-dark);
+  overflow: hidden;
+}
+
+/* Make xterm fill the container */
+#term-container .xterm {
+  height: 100%;
+}
+
+/* --- JRPG/Golden Sun terminal --- */
+.theme-jrpg #term-header {
+  background: linear-gradient(180deg, #1a1e48 0%, #121638 100%);
+  border-bottom: 2px solid #c8a028;
+  box-shadow: inset 0 -1px 0 rgba(200, 160, 40, 0.2);
+}
+
+.theme-jrpg .term-avatar {
+  border: 2px solid #c8a028;
+  box-shadow: 0 0 8px rgba(200, 160, 40, 0.2), 2px 2px 0 rgba(0,0,0,0.4);
+  border-radius: 4px;
+}
+
+.theme-jrpg .term-title {
+  background: linear-gradient(180deg, #f0d060 0%, #e8a820 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  font-family: 'Courier New', monospace;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+.theme-jrpg #term-container {
+  background: #0c0e24;
+  border: 2px solid rgba(200, 160, 40, 0.3);
+  border-top: none;
+}
+
+/* --- Paper theme terminal --- */
+.theme-jrpg-paper #term-header,
+.theme-jrpg-paper-full #term-header,
+.theme-jrpg-paper-bleed #term-header {
+  background: linear-gradient(180deg, #a0845c 0%, #8b7042 50%, #6b5530 100%);
+  border-bottom: 3px solid #4a3520;
+}
+
+.theme-jrpg-paper .term-avatar,
+.theme-jrpg-paper-full .term-avatar,
+.theme-jrpg-paper-bleed .term-avatar {
+  border: 2px solid #4a3520;
+  border-radius: 2px;
+  box-shadow: 2px 2px 0 rgba(0,0,0,0.2);
+}
+
+.theme-jrpg-paper .term-title,
+.theme-jrpg-paper-full .term-title,
+.theme-jrpg-paper-bleed .term-title {
+  background: linear-gradient(180deg, #fff8dc 0%, #f0e6c0 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  font-family: 'Courier New', monospace;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+.theme-jrpg-paper .term-connection,
+.theme-jrpg-paper-full .term-connection,
+.theme-jrpg-paper-bleed .term-connection {
+  color: #fff8dc;
+  opacity: 0.7;
+}
+
+.theme-jrpg-paper #term-container,
+.theme-jrpg-paper-full #term-container,
+.theme-jrpg-paper-bleed #term-container {
+  background: #f5ecd8;
+  border: 2px solid #8b7355;
+  border-top: none;
+}
+
+/* --- Terminal input bar --- */
+#term-input-bar {
+  padding: 6px 8px;
+  background: var(--bg-dark);
+  border-top: 1px solid rgba(255,255,255,0.1);
+  flex-shrink: 0;
+}
+
+#term-quick-keys {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 6px;
+  overflow-x: auto;
+}
+
+.term-key {
+  background: rgba(255,255,255,0.1);
+  color: var(--text-secondary, #ccc);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 4px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-family: 'Courier New', monospace;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.term-key:active {
+  background: rgba(255,255,255,0.25);
+}
+
+#term-input-row {
+  display: flex;
+  gap: 6px;
+}
+
+#term-input {
+  flex: 1;
+  background: rgba(0,0,0,0.4);
+  color: var(--text-primary, #fff);
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 4px;
+  padding: 8px 10px;
+  font-size: 15px;
+  font-family: 'Courier New', monospace;
+  outline: none;
+}
+
+#term-input:focus {
+  border-color: var(--accent, #7c3aed);
+  box-shadow: 0 0 6px rgba(124, 58, 237, 0.3);
+}
+
+#term-send-btn {
+  background: var(--accent, #7c3aed);
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: 'Courier New', monospace;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+#term-send-btn:active {
+  opacity: 0.8;
+}
+
+/* JRPG theme input bar */
+.theme-jrpg #term-input-bar {
+  background: #0c0e24;
+  border-top-color: rgba(200, 160, 40, 0.3);
+}
+.theme-jrpg .term-key {
+  background: rgba(200, 160, 40, 0.15);
+  border-color: rgba(200, 160, 40, 0.3);
+  color: #f0d060;
+}
+.theme-jrpg #term-input {
+  background: rgba(0,0,0,0.5);
+  border-color: rgba(200, 160, 40, 0.3);
+  color: #e8e0c8;
+}
+.theme-jrpg #term-input:focus {
+  border-color: #c8a028;
+  box-shadow: 0 0 6px rgba(200, 160, 40, 0.3);
+}
+.theme-jrpg #term-send-btn {
+  background: linear-gradient(180deg, #e8a820 0%, #c8a028 100%);
+  color: #0c0e24;
+}
+
+/* Paper theme input bar */
+.theme-jrpg-paper #term-input-bar,
+.theme-jrpg-paper-full #term-input-bar,
+.theme-jrpg-paper-bleed #term-input-bar {
+  background: #e8dcc4;
+  border-top: 2px solid #8b7355;
+}
+.theme-jrpg-paper .term-key,
+.theme-jrpg-paper-full .term-key,
+.theme-jrpg-paper-bleed .term-key {
+  background: rgba(74, 53, 32, 0.15);
+  border-color: #8b7355;
+  color: #4a3520;
+}
+.theme-jrpg-paper #term-input,
+.theme-jrpg-paper-full #term-input,
+.theme-jrpg-paper-bleed #term-input {
+  background: #f5ecd8;
+  border-color: #8b7355;
+  color: #2a1810;
+}
+.theme-jrpg-paper #term-input:focus,
+.theme-jrpg-paper-full #term-input:focus,
+.theme-jrpg-paper-bleed #term-input:focus {
+  border-color: #4a3520;
+  box-shadow: 0 0 6px rgba(74, 53, 32, 0.3);
+}
+.theme-jrpg-paper #term-send-btn,
+.theme-jrpg-paper-full #term-send-btn,
+.theme-jrpg-paper-bleed #term-send-btn {
+  background: linear-gradient(180deg, #6b5530 0%, #4a3520 100%);
+  color: #fff8dc;
+}
+
+/* --- Mobile terminal --- */
+@media (max-width: 600px) {
+  #term-header {
+    padding: 8px 12px;
+    gap: 10px;
+  }
+  .term-avatar {
+    width: 32px;
+    height: 32px;
+  }
+  .term-title { font-size: 13px; }
+  #term-container { padding: 2px; }
+}
