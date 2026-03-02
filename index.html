@@ -6,17 +6,19 @@
   <title>The Familiar</title>
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#1a1a2e">
+  <link rel="icon" type="image/png" href="bones-3.png">
+  <link rel="apple-touch-icon" href="bones-3.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles2.css">
 </head>
 <body>
 
   <!-- Login Screen -->
   <div id="login-screen">
     <div style="text-align: center; max-width: 400px;">
-      <img src="eevee-sprite.jpg" alt="Evie" style="width: 120px; height: 120px; border-radius: 50%; margin-bottom: 24px; object-fit: cover;">
+      <img src="bones-3.png" alt="Evie" style="width: 120px; height: 120px; border-radius: 50%; margin-bottom: 24px; object-fit: cover;">
       <h1 style="color: var(--text); font-size: 28px; margin-bottom: 12px;">The Familiar</h1>
       <p style="color: var(--text-muted); margin-bottom: 32px;">Sign in to chat with Evie</p>
       <div id="login-form">
@@ -32,7 +34,7 @@
   <!-- Pairing Screen -->
   <div id="pairing-screen">
     <div style="text-align: center; max-width: 500px;">
-      <img src="eevee-sprite.jpg" alt="Evie" style="width: 100px; height: 100px; border-radius: 50%; margin-bottom: 20px; object-fit: cover; opacity: 0.7;">
+      <img src="bones-3.png" alt="Evie" style="width: 100px; height: 100px; border-radius: 50%; margin-bottom: 20px; object-fit: cover; opacity: 0.7;">
       <h2 style="color: var(--text); font-size: 22px; margin-bottom: 8px;">Device Pairing Required</h2>
       <p style="color: var(--text-muted); margin-bottom: 24px;">This device needs to be approved before it can connect.</p>
 
@@ -645,12 +647,74 @@
       }
     }
 
+    // ============================================
+    // EMOTE SYSTEM
+    // ============================================
+    // Preload all sprite frames
+    ['bones-1.png', 'bones-2.png', 'bones-3.png', 'bones-4.png'].forEach(src => {
+      new Image().src = src;
+    });
+
+    const EMOTES = {
+      think: { sequence: ['bones-3.png', 'bones-4.png'], speed: 200 },
+      yap:   { sequence: ['bones-1.png', 'bones-4.png'], speed: 150 },
+      laugh: { sequence: [
+        'bones-3.png', 'bones-1.png', 'bones-2.png',
+        'bones-1.png', 'bones-2.png', 'bones-2.png',
+        'bones-1.png', 'bones-2.png', 'bones-3.png',
+      ], speed: 150 },
+    };
+
+    let currentEmoteName = 'yap';
+
+    function startEmote(imgElement, emoteName) {
+      const emote = EMOTES[emoteName];
+      if (!emote || !imgElement) return null;
+      let frame = 0;
+      return setInterval(() => {
+        imgElement.src = emote.sequence[frame];
+        frame = (frame + 1) % emote.sequence.length;
+      }, emote.speed);
+    }
+
+    // Detect emotes from a sliding window of revealed text
+    function detectEmote(text) {
+      const t = text.toLowerCase();
+      // Explicit markers (highest priority)
+      if (/\*laughs?\*|\*chuckles?\*|\*grins?\*/.test(t)) return 'laugh';
+      if (/\*thinks?\*|\*ponders?\*|\*considers?\*/.test(t)) return 'think';
+      // Natural language patterns
+      if (/(?:ha){2,}|(?:he){2,}|lol\b|lmao|rofl|😂|😆|🤣/.test(t)) return 'laugh';
+      if (/hmm{2,}|🤔/.test(t)) return 'think';
+      return 'yap';
+    }
+
+    // Detect dominant emote for post-message reaction
+    function detectMessageEmote(text) {
+      const t = text.toLowerCase();
+      const laughCount = (t.match(/(?:ha){2,}|(?:he){2,}|lol\b|lmao|rofl|😂|😆|🤣|\*laughs?\*|\*chuckles?\*/g) || []).length;
+      const thinkCount = (t.match(/hmm{2,}|🤔|\*thinks?\*|\*ponders?\*/g) || []).length;
+      if (laughCount > thinkCount && laughCount > 0) return 'laugh';
+      if (thinkCount > 0) return 'think';
+      return null; // no strong emotion — go straight to rest
+    }
+
+    function switchStreamingEmote(emoteName) {
+      if (!currentStreamingMessage || !currentStreamingMessage.element) return;
+      if (emoteName === currentEmoteName) return;
+      const img = currentStreamingMessage.element.querySelector('.avatar img');
+      if (!img) return;
+      if (currentStreamingMessage.yapTimer) clearInterval(currentStreamingMessage.yapTimer);
+      currentStreamingMessage.yapTimer = startEmote(img, emoteName);
+      currentEmoteName = emoteName;
+    }
+
     function renderStreamingMessage() {
       const div = document.createElement('div');
       div.className = 'message assistant';
-      
+
       div.innerHTML = `
-        <div class="avatar assistant typing"><img src="eevee-sprite.jpg" alt="Evie"></div>
+        <div class="avatar assistant typing talking"><img src="bones-3.png" alt="Evie"></div>
         <div class="bubble">
           <p class="streaming-content"></p>
           <div class="typing-indicator">
@@ -658,36 +722,159 @@
           </div>
         </div>
       `;
-      
+
+      // Tap bubble to skip reveal (classic RPG fast-forward)
+      div.querySelector('.bubble').addEventListener('click', () => {
+        if (currentStreamingMessage && revealedLength < currentStreamingMessage.content.length) {
+          flushReveal();
+        }
+      });
+
       chatEl.appendChild(div);
       chatEl.scrollTop = chatEl.scrollHeight;
       currentStreamingMessage.element = div;
+
+      streamComplete = false;
+      currentEmoteName = 'yap';
+
+      // Start yap emote: bones-1 ↔ bones-4
+      const yapImg = div.querySelector('.avatar img');
+      if (yapImg) {
+        currentStreamingMessage.yapTimer = startEmote(yapImg, 'yap');
+      }
+
+      // Reset reveal state for new message
+      revealedLength = 0;
+      if (revealTimer) {
+        clearInterval(revealTimer);
+        revealTimer = null;
+      }
     }
 
+    // ============================================
+    // INK-BLEED TEXT REVEAL (JRPG typewriter)
+    // ============================================
+    let revealedLength = 0;
+    let revealTimer = null;
+    let streamComplete = false;
+    const REVEAL_SPEED = 50; // ms per character (~20 chars/sec, slower ink bleed)
+
     function updateStreamingContent() {
+      if (!currentStreamingMessage || !currentStreamingMessage.element) return;
+
+      // If no reveal timer running, start one
+      if (!revealTimer) {
+        revealTimer = setInterval(drainRevealQueue, REVEAL_SPEED);
+      }
+    }
+
+    function drainRevealQueue() {
+      if (!currentStreamingMessage || !currentStreamingMessage.element) {
+        clearInterval(revealTimer);
+        revealTimer = null;
+        return;
+      }
+
+      const target = currentStreamingMessage.content;
+      if (revealedLength < target.length) {
+        // Reveal next character
+        revealedLength++;
+        const contentEl = currentStreamingMessage.element.querySelector('.streaming-content');
+        contentEl.textContent = target.substring(0, revealedLength);
+        chatEl.scrollTop = chatEl.scrollHeight;
+
+        // Emote detection: check sliding window of recent text every 5 chars
+        if (revealedLength > 2 && revealedLength % 5 === 0) {
+          const windowText = target.substring(Math.max(0, revealedLength - 25), revealedLength);
+          switchStreamingEmote(detectEmote(windowText));
+        }
+      } else if (streamComplete) {
+        // All text revealed and stream is done — stop yapping, clean up
+        finishRevealCleanup();
+      }
+      // Otherwise just wait for more content (timer keeps running)
+    }
+
+    function flushReveal() {
+      // Instantly show all remaining content
       if (currentStreamingMessage && currentStreamingMessage.element) {
         const contentEl = currentStreamingMessage.element.querySelector('.streaming-content');
         contentEl.textContent = currentStreamingMessage.content;
+        revealedLength = currentStreamingMessage.content.length;
         chatEl.scrollTop = chatEl.scrollHeight;
+
+        // If stream is already complete, clean up immediately
+        if (streamComplete) {
+          finishRevealCleanup();
+        }
       }
+    }
+
+    function finishRevealCleanup() {
+      if (!currentStreamingMessage || !currentStreamingMessage.element) return;
+
+      // Stop reveal timer
+      if (revealTimer) { clearInterval(revealTimer); revealTimer = null; }
+      revealedLength = 0;
+
+      // Remove blinking cursor
+      const contentEl = currentStreamingMessage.element.querySelector('.streaming-content');
+      if (contentEl) contentEl.classList.remove('streaming-content');
+
+      // Remove typing indicator
+      const typingEl = currentStreamingMessage.element.querySelector('.typing-indicator');
+      if (typingEl) typingEl.remove();
+
+      // Remove animation classes
+      const avatarEl = currentStreamingMessage.element.querySelector('.avatar');
+      if (avatarEl) avatarEl.classList.remove('typing', 'talking');
+
+      // Post-message reaction: check if the full message has a dominant emote
+      const postEmote = detectMessageEmote(currentStreamingMessage.content);
+      const msgRef = currentStreamingMessage;
+
+      // Stop yap timer
+      if (msgRef.yapTimer) clearInterval(msgRef.yapTimer);
+
+      if (postEmote) {
+        // Play reaction emote for 2 seconds, then rest
+        const img = msgRef.element.querySelector('.avatar img');
+        if (img) {
+          const reactionTimer = startEmote(img, postEmote);
+          setTimeout(() => {
+            clearInterval(reactionTimer);
+            img.src = 'bones-3.png';
+          }, 2000);
+        }
+      } else {
+        // No strong emotion — rest immediately
+        const img = msgRef.element.querySelector('.avatar img');
+        if (img) img.src = 'bones-3.png';
+      }
+
+      currentEmoteName = 'yap';
+      currentStreamingMessage = null;
     }
 
     function finalizeStreamingMessage() {
       if (currentStreamingMessage && currentStreamingMessage.element) {
-        // Remove typing indicator
+        streamComplete = true;
+
+        // Remove typing dots (text is still revealing via ink bleed)
         const typingEl = currentStreamingMessage.element.querySelector('.typing-indicator');
         if (typingEl) typingEl.remove();
-        
-        // Remove "talking" animation
-        const avatarEl = currentStreamingMessage.element.querySelector('.avatar');
-        if (avatarEl) avatarEl.classList.remove('typing');
-        
-        currentStreamingMessage = null;
+
+        // If reveal already caught up, clean up now
+        if (revealedLength >= currentStreamingMessage.content.length) {
+          finishRevealCleanup();
+        }
+        // Otherwise drainRevealQueue will call finishRevealCleanup when done
       }
     }
 
     // Thinking indicator management
     let thinkingElement = null;
+    let thinkingYapTimer = null;
 
     function showThinkingIndicator() {
       hideThinkingIndicator();
@@ -695,7 +882,7 @@
       div.className = 'message assistant';
       div.id = 'thinking-indicator';
       div.innerHTML = `
-        <div class="avatar assistant thinking"><img src="eevee-sprite.jpg" alt="Evie"></div>
+        <div class="avatar assistant"><img src="bones-3.png" alt="Evie"></div>
         <div class="bubble">
           <div class="typing-indicator">
             <span></span><span></span><span></span>
@@ -705,9 +892,19 @@
       chatEl.appendChild(div);
       chatEl.scrollTop = chatEl.scrollHeight;
       thinkingElement = div;
+
+      // Think emote while dots are showing: bones-3 ↔ bones-4
+      const thinkImg = div.querySelector('.avatar img');
+      if (thinkImg) {
+        thinkingYapTimer = startEmote(thinkImg, 'think');
+      }
     }
 
     function hideThinkingIndicator() {
+      if (thinkingYapTimer) {
+        clearInterval(thinkingYapTimer);
+        thinkingYapTimer = null;
+      }
       if (thinkingElement) {
         thinkingElement.remove();
         thinkingElement = null;
@@ -763,9 +960,9 @@
       const div = document.createElement('div');
       div.className = `message ${msg.role}`;
       
-      const avatarImg = msg.role === 'assistant' 
-        ? '<img src="eevee-sprite.jpg" alt="Evie">' 
-        : '<img src="user-avatar.jpg" alt="You" style="width:40px;height:40px;border-radius:50%;object-fit:cover;">';
+      const avatarImg = msg.role === 'assistant'
+        ? '<img src="bones-3.png" alt="Evie">'
+        : '<img src="simon-avatar.png" alt="You">';
       const avatarClass = msg.role === 'assistant' ? 'assistant' : 'user';
       
       let contentHtml = '';
@@ -807,6 +1004,25 @@
       const div = document.createElement('div');
       div.textContent = text;
       return div.innerHTML;
+    }
+
+    // Clean raw executor output into a readable summary
+    function cleanGiftSummary(raw) {
+      if (!raw) return '';
+      // Try to extract summary from executor JSON wrapped in markdown code fences
+      try {
+        const jsonMatch = raw.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[1]);
+          if (parsed.summary) return parsed.summary;
+        }
+      } catch (e) {}
+      // Fallback: strip code fences and executor prefix
+      return raw
+        .replace(/```(?:json)?\s*/g, '')
+        .replace(/```/g, '')
+        .replace(/^Claude Code executor:\s*/i, '')
+        .trim();
     }
 
     function formatTime(ts) {
@@ -1077,8 +1293,112 @@
         return section;
       }
 
-      const text = typeof brief === 'string' ? brief : JSON.stringify(brief, null, 2);
-      section.innerHTML += `<div class="ops-brief">${escapeHtml(text)}</div>`;
+      // If it's a string (old format), show as-is
+      if (typeof brief === 'string') {
+        section.innerHTML += `<div class="ops-brief">${escapeHtml(brief)}</div>`;
+        return section;
+      }
+
+      let html = '';
+
+      // TLDR
+      if (brief.tldr && brief.tldr.length > 0) {
+        html += '<div class="brief-card">';
+        brief.tldr.forEach(t => { html += `<div class="brief-tldr">${escapeHtml(t)}</div>`; });
+        html += '</div>';
+      }
+
+      // Overnight gifts
+      if (brief.gifts && brief.gifts.length > 0) {
+        html += '<div class="brief-card"><div class="brief-card-title">Overnight Gifts</div>';
+        brief.gifts.forEach(g => {
+          html += `<div class="brief-item">
+            <div class="brief-item-title">${escapeHtml(g.title)}</div>
+            <div class="brief-item-meta">${escapeHtml(g.domain || '')}${g.completed_at ? ' · ' + escapeHtml(g.completed_at) : ''}</div>
+            ${g.summary ? '<div class="brief-item-body">' + escapeHtml(cleanGiftSummary(g.summary)).replace(/\n/g, '<br>') + '</div>' : ''}
+          </div>`;
+        });
+        html += '</div>';
+      }
+
+      // Action items
+      const ai = brief.action_items || {};
+      const quickWins = ai.quick_wins || [];
+      const contentReady = ai.content_ready || [];
+      const inPipeline = ai.in_pipeline || [];
+      const needsReview = ai.needs_review || [];
+      const totalActions = quickWins.length + contentReady.length + inPipeline.length + needsReview.length;
+      if (totalActions > 0) {
+        html += '<div class="brief-card"><div class="brief-card-title">Action Items</div>';
+        const renderItems = (label, items) => {
+          if (items.length === 0) return '';
+          let out = `<div class="brief-item-meta" style="margin-top:8px">${escapeHtml(label)}</div>`;
+          items.forEach(item => {
+            const text = typeof item === 'string' ? item : (item.title || JSON.stringify(item));
+            out += `<div class="brief-item-title" style="font-size:12px;margin:4px 0">${escapeHtml(text)}</div>`;
+          });
+          return out;
+        };
+        html += renderItems('Quick Wins', quickWins);
+        html += renderItems('Content Ready', contentReady);
+        html += renderItems('In Pipeline', inPipeline);
+        html += renderItems('Needs Review', needsReview);
+        html += '</div>';
+      }
+
+      // Revenue
+      if (brief.revenue && brief.revenue.month_to_date != null) {
+        html += `<div class="brief-card"><div class="brief-card-title">Revenue</div>
+          <div class="brief-item-title">MTD: $${brief.revenue.month_to_date}</div>
+          ${brief.revenue.upcoming_gigs ? '<div class="brief-item-meta">' + brief.revenue.upcoming_gigs + ' upcoming gigs</div>' : ''}
+        </div>`;
+      }
+
+      // Opportunities
+      if (brief.opportunities && brief.opportunities.new_count > 0) {
+        html += '<div class="brief-card"><div class="brief-card-title">Opportunities (' + brief.opportunities.new_count + ' new)</div>';
+        (brief.opportunities.items || []).forEach(o => {
+          html += `<div class="brief-item-title" style="font-size:12px">${escapeHtml(o.title || o)}</div>`;
+        });
+        html += '</div>';
+      }
+
+      // Anomalies
+      if (brief.anomalies && brief.anomalies.length > 0) {
+        html += '<div class="brief-card" style="border-color:rgba(239,68,68,0.3)"><div class="brief-card-title" style="color:#f87171">Anomalies</div>';
+        brief.anomalies.forEach(a => {
+          const text = typeof a === 'string' ? a : (a.title || a.detail || JSON.stringify(a));
+          html += `<div class="brief-item-title" style="font-size:12px">${escapeHtml(text)}</div>`;
+        });
+        html += '</div>';
+      }
+
+      // Recent activity (collapsed, last 10)
+      if (brief.overnight_activity && brief.overnight_activity.length > 0) {
+        const recent = brief.overnight_activity.slice(0, 10);
+        html += '<div class="brief-card"><div class="brief-card-title">Recent Activity</div>';
+        recent.forEach(a => {
+          const time = a.timestamp ? a.timestamp.split(' ')[1] || '' : '';
+          html += `<div class="brief-activity">
+            <span class="brief-activity-time">${escapeHtml(time)}</span>
+            <span class="brief-activity-agent">${escapeHtml(a.agent || '')}</span>
+            <span class="brief-activity-detail">${escapeHtml((a.detail || '').substring(0, 80))}${(a.detail || '').length > 80 ? '...' : ''}</span>
+          </div>`;
+        });
+        if (brief.overnight_activity.length > 10) {
+          html += `<div class="brief-item-meta" style="text-align:center;margin-top:6px">+ ${brief.overnight_activity.length - 10} more</div>`;
+        }
+        html += '</div>';
+      }
+
+      // Budget summary
+      if (brief.budget) {
+        html += `<div class="brief-card"><div class="brief-card-title">Budget</div>
+          <div class="brief-item-title">$${brief.budget.spent?.toFixed(2) || '0'} / $${brief.budget.ceiling || '50'} (${brief.budget.callCount || 0} calls)</div>
+        </div>`;
+      }
+
+      section.innerHTML += html || '<div class="ops-empty">Brief is empty</div>';
       return section;
     }
 

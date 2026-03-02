@@ -35,7 +35,7 @@ Collection `config/{userId}` — three required fields:
 | Field | Value | Notes |
 |-------|-------|-------|
 | `wsUrl` | `wss://eevee.professoroffunk.com/ws` | Cloudflare Tunnel to Mac Mini gateway |
-| `gatewayToken` | `0aba4da14cea0e476e1fdc2c63b0cc7e3897738958f6b5f9` | Must match `gateway.auth.token` in Mac Mini's `~/.openclaw/openclaw.json` |
+| `gatewayToken` | `34509AB6C0F94FC19A346231878DF131` | Must match `gateway.auth.token` in Mac Mini's `~/.openclaw/openclaw.json` |
 | `chatId` | `8231604636` | Telegram chat ID |
 
 **If the gateway token is missing or wrong, the app will fail with "gateway token missing" or "device identity mismatch".** Update via Firebase console.
