@@ -12,6 +12,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles2.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.min.css">
 </head>
 <body>
 
@@ -96,14 +97,63 @@
       <div id="ops-content" style="display: none;"></div>
     </div>
 
+    <!-- Terminal Tab (hidden by default) -->
+    <div id="term-tab" class="tab-content" style="display: none;">
+      <div id="term-header">
+        <div class="term-avatar">
+          <img src="bones-3.png" alt="Evie" id="term-evie-img">
+        </div>
+        <div class="term-status">
+          <span class="term-title">Terminal</span>
+          <span class="term-connection" id="term-status-text">Disconnected</span>
+             <span class="term-version" id="term-version-text" style="font-size:9px;opacity:0.4"></span>
+        </div>
+      </div>
+      <div id="term-container"></div>
+      <div id="term-input-bar">
+        <div id="term-quick-keys">
+          <button class="term-key" data-key="\t">Tab</button>
+          <button class="term-key" data-key="\x03">^C</button>
+          <button class="term-key" data-key="\x04">^D</button>
+          <button class="term-key" data-key="\x1b[A">↑</button>
+          <button class="term-key" data-key="\x1b[B">↓</button>
+          <button class="term-key" data-key="\x1b">Esc</button>
+        </div>
+        <div id="term-input-row">
+          <input type="text" id="term-input" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Type command...">
+          <button id="term-send-btn">Send</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Bottom Nav -->
     <nav id="bottom-nav">
       <button class="nav-tab active" data-tab="chat">💬 Chat</button>
       <button class="nav-tab" data-tab="ops">📋 Ops</button>
+      <button class="nav-tab" data-tab="term">⌨ Term</button>
     </nav>
   </div>
 
   <script type="module">
+    // ============================================
+    // AUTO-UPDATE CHECK
+    // ============================================
+    const APP_VERSION = '2026-03-04a';
+    // On load, fetch index.html and check if version changed
+    if (!sessionStorage.getItem('version-checked')) {
+      sessionStorage.setItem('version-checked', '1');
+      fetch(location.pathname + '?_t=' + Date.now(), { cache: 'no-store' })
+        .then(r => r.text())
+        .then(html => {
+          const m = html.match(/APP_VERSION\s*=\s*'([^']+)'/);
+          if (m && m[1] !== APP_VERSION) {
+            console.log('New version available:', m[1], '(current:', APP_VERSION + ')');
+            location.reload();
+          }
+        })
+        .catch(() => {});
+    }
+
     // ============================================
     // FIREBASE & AUTH
     // ============================================
@@ -1141,6 +1191,7 @@
         document.querySelectorAll('.tab-content').forEach(c => c.style.display = 'none');
         document.getElementById(target + '-tab').style.display = '';
         if (target === 'ops') loadOps();
+        if (target === 'term') initTerminal();
       });
     });
 
@@ -1474,6 +1525,289 @@
       reconnectAttempts = 0;
       connect();
     });
+
+    // ============================================
+    // TERMINAL
+    // ============================================
+    const TERM_WS_URL = 'wss://evie.professoroffunk.com';
+    let term = null;
+    let termWs = null;
+    let termInitialized = false;
+    let termYapTimer = null;
+    let termIdleTimer = null;
+
+    // Evie talking head for terminal — yaps when output flows, idle when quiet
+    function termStartYap() {
+      const img = document.getElementById('term-evie-img');
+      if (!img || termYapTimer) return;
+      const frames = ['bones-1.png', 'bones-4.png'];
+      let frame = 0;
+      termYapTimer = setInterval(() => {
+        img.src = frames[frame];
+        frame = (frame + 1) % frames.length;
+      }, 150);
+    }
+
+    function termStopYap() {
+      if (termYapTimer) {
+        clearInterval(termYapTimer);
+        termYapTimer = null;
+      }
+      const img = document.getElementById('term-evie-img');
+      if (img) img.src = 'bones-3.png';
+    }
+
+    function termOnOutput() {
+      termStartYap();
+      // Stop yapping 400ms after last output
+      clearTimeout(termIdleTimer);
+      termIdleTimer = setTimeout(termStopYap, 400);
+    }
+
+    // Theme-aware terminal colors
+    function getTermTheme() {
+      const theme = localStorage.getItem('eevee.theme') || 'anime';
+
+      if (theme === 'jrpg') {
+        // Golden Sun — gold accents, Djinn greens, Mars reds
+        return {
+          background: '#0c0e24',
+          foreground: '#e8e0d0',
+          cursor: '#e8a820',
+          cursorAccent: '#0c0e24',
+          selectionBackground: 'rgba(200, 160, 40, 0.3)',
+          black: '#0c0e24', red: '#d06030', green: '#58d878', yellow: '#e8a820',
+          blue: '#6090e0', magenta: '#e8a820', cyan: '#50b0c0', white: '#e8e0d0',
+          brightBlack: '#8088a8', brightRed: '#f08050', brightGreen: '#78f898',
+          brightYellow: '#f0d060', brightBlue: '#80b0f0', brightMagenta: '#f0d060',
+          brightCyan: '#70d0e0', brightWhite: '#f8f0e0',
+        };
+      } else if (theme.startsWith('jrpg-paper')) {
+        // Parchment — ink reds, forest greens, sepia tones
+        return {
+          background: '#f5ecd8',
+          foreground: '#2c1810',
+          cursor: '#8b0000',
+          cursorAccent: '#f5ecd8',
+          selectionBackground: 'rgba(139, 0, 0, 0.2)',
+          black: '#2c1810', red: '#8b0000', green: '#2e7d32', yellow: '#8b6914',
+          blue: '#2e4a7a', magenta: '#8b0000', cyan: '#4a6858', white: '#f5ecd8',
+          brightBlack: '#7a6652', brightRed: '#a52a2a', brightGreen: '#3e9d42',
+          brightYellow: '#b8860b', brightBlue: '#4a6a9a', brightMagenta: '#a52a2a',
+          brightCyan: '#5a8878', brightWhite: '#fff8ee',
+        };
+      }
+      // Default anime — purple/cyan
+      return {
+        background: '#161622',
+        foreground: '#f1f5f9',
+        cursor: '#7c3aed',
+        cursorAccent: '#161622',
+        selectionBackground: 'rgba(124, 58, 237, 0.3)',
+        black: '#0d0d14', red: '#ef4444', green: '#10b981', yellow: '#eab308',
+        blue: '#3b82f6', magenta: '#8b5cf6', cyan: '#06b6d4', white: '#f1f5f9',
+        brightBlack: '#94a3b8', brightRed: '#f87171', brightGreen: '#34d399',
+        brightYellow: '#facc15', brightBlue: '#60a5fa', brightMagenta: '#a78bfa',
+        brightCyan: '#22d3ee', brightWhite: '#ffffff',
+      };
+    }
+
+    async function initTerminal() {
+      if (termInitialized) {
+        // Refit on tab switch
+        if (term && term._addonFit) term._addonFit.fit();
+        return;
+      }
+
+      // Dynamically load xterm.js
+      const { Terminal } = await import('https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/+esm');
+      const { FitAddon } = await import('https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/+esm');
+      const { WebLinksAddon } = await import('https://cdn.jsdelivr.net/npm/@xterm/addon-web-links@0.11.0/+esm');
+
+      const fitAddon = new FitAddon();
+      const webLinksAddon = new WebLinksAddon();
+
+      const colors = getTermTheme();
+      term = new Terminal({
+        cursorBlink: true,
+        fontSize: 14,
+        fontFamily: "'Courier New', monospace",
+        theme: colors,
+        allowProposedApi: true,
+      });
+
+      term.loadAddon(fitAddon);
+      term.loadAddon(webLinksAddon);
+      term._addonFit = fitAddon;
+
+      const container = document.getElementById('term-container');
+      term.open(container);
+      fitAddon.fit();
+
+      // On mobile, disable xterm's own keyboard handling — use our input bar instead
+      const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+      const xtextarea = container.querySelector('.xterm-helper-textarea');
+      if (xtextarea && isMobile) {
+        xtextarea.setAttribute('readonly', 'true');
+        xtextarea.style.display = 'none';
+      }
+
+      // Wire up mobile input bar — line mode: type in box, send on submit
+      const termInput = document.getElementById('term-input');
+      const termSendBtn = document.getElementById('term-send-btn');
+
+      function termSendInput() {
+        const val = termInput.value;
+        if (termWs && termWs.readyState === WebSocket.OPEN) {
+          if (val) termWs.send(val);
+          termWs.send('\r');
+        }
+        termInput.value = '';
+        termInput.focus();
+      }
+
+      termSendBtn.addEventListener('click', termSendInput);
+      termInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          termSendInput();
+        }
+      });
+
+      // Quick key buttons (Tab, ^C, ^D, arrows, Esc)
+      document.querySelectorAll('.term-key').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const key = btn.dataset.key;
+          if (key && termWs && termWs.readyState === WebSocket.OPEN) {
+            termWs.send(key);
+          }
+          termInput.focus();
+        });
+      });
+
+      // Hide input bar on desktop (xterm handles keyboard natively)
+      if (!isMobile) {
+        document.getElementById('term-input-bar').style.display = 'none';
+      }
+
+      // Resize on window resize
+      window.addEventListener('resize', () => {
+        if (document.getElementById('term-tab').style.display !== 'none') {
+          fitAddon.fit();
+        }
+      });
+
+      // Connect to terminal proxy
+      connectTerminal();
+
+      // Send input to WS (with mobile dedup — skip same data within 30ms)
+      let _lastData = '', _lastTime = 0;
+      term.onData(data => {
+        if (termWs && termWs.readyState === WebSocket.OPEN) {
+          const now = Date.now();
+          if (data.length === 1 && data === _lastData && now - _lastTime < 30) return;
+          _lastData = data;
+          _lastTime = now;
+          termWs.send(data);
+        }
+      });
+
+      // Send resize events
+      term.onResize(({ rows, cols }) => {
+        if (termWs && termWs.readyState === WebSocket.OPEN) {
+          termWs.send(JSON.stringify({ type: 'resize', rows, cols }));
+        }
+      });
+
+      termInitialized = true;
+      const verEl = document.getElementById('term-version-text');
+      if (verEl) verEl.textContent = 'v' + APP_VERSION;
+    }
+
+    async function connectTerminal() {
+      const statusEl = document.getElementById('term-status-text');
+      const evieImg = document.getElementById('term-evie-img');
+      statusEl.textContent = 'Connecting...';
+
+      try {
+        termWs = new WebSocket(TERM_WS_URL);
+        termWs.binaryType = 'arraybuffer';
+
+        termWs.onopen = async () => {
+          console.log('Terminal WS connected');
+          // Send Firebase auth token
+          const token = await currentUser.getIdToken();
+          termWs.send(JSON.stringify({ type: 'auth', token }));
+        };
+
+        termWs.onmessage = (event) => {
+          const data = event.data;
+          // Check for JSON control messages
+          if (typeof data === 'string' && data.startsWith('{')) {
+            try {
+              const msg = JSON.parse(data);
+              if (msg.type === 'auth' && msg.status === 'ok') {
+                statusEl.textContent = 'Connected';
+                statusEl.style.color = 'var(--online)';
+                evieImg.src = 'bones-1.png';
+                if (term && term._addonFit) {
+                  term._addonFit.fit();
+                  termWs.send(JSON.stringify({
+                    type: 'resize',
+                    rows: term.rows,
+                    cols: term.cols,
+                  }));
+                }
+                return;
+              }
+              if (msg.type === 'error') {
+                term.writeln('\r\n\x1b[31mError: ' + msg.message + '\x1b[0m');
+                statusEl.textContent = 'Error';
+                statusEl.style.color = '#ef4444';
+                return;
+              }
+            } catch {}
+          }
+          // Terminal output — Evie yaps when data flows
+          termOnOutput();
+          if (data instanceof ArrayBuffer) {
+            term.write(new Uint8Array(data));
+          } else {
+            term.write(data);
+          }
+        };
+
+        termWs.onclose = () => {
+          statusEl.textContent = 'Reconnecting...';
+          statusEl.style.color = '#f59e0b';
+          evieImg.src = 'bones-3.png';
+          term.writeln('\r\n\x1b[33m[Connection lost — reconnecting in 3s...]\x1b[0m');
+          // Auto-reconnect after 3 seconds
+          setTimeout(() => {
+            if (document.getElementById('term-tab').style.display !== 'none') {
+              connectTerminal();
+            }
+          }, 3000);
+        };
+
+        termWs.onerror = () => {
+          statusEl.textContent = 'Error';
+          statusEl.style.color = '#ef4444';
+        };
+      } catch (e) {
+        statusEl.textContent = 'Failed';
+        console.error('Terminal connect error:', e);
+      }
+    }
+
+    // Update terminal theme when app theme changes
+    const origSetTheme = setTheme;
+    setTheme = function(theme) {
+      origSetTheme(theme);
+      if (term) {
+        term.options.theme = getTermTheme();
+      }
+    };
 
     // ============================================
     // INIT
