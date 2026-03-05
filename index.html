@@ -138,7 +138,7 @@
     // ============================================
     // AUTO-UPDATE CHECK
     // ============================================
-    const APP_VERSION = '2026-03-04a';
+    const APP_VERSION = '2026-03-04b';
     // On load, fetch index.html and check if version changed
     if (!sessionStorage.getItem('version-checked')) {
       sessionStorage.setItem('version-checked', '1');
@@ -971,11 +971,37 @@
       // Show thinking indicator immediately
       showThinkingIndicator();
 
+      // --- Brain Capture: store memory intent in parallel (fire-and-forget) ---
+      if (isMemoryIntent(text)) {
+        const memContent = extractMemoryContent(text);
+        if (memContent) {
+          storeToBrain(memContent, 'evie', ['chat', 'user-intent']).then(ok => {
+            if (ok) console.log('🧠 Memory captured successfully');
+          });
+        }
+      }
+
+      // --- Brain Retrieval: search for relevant context (non-blocking) ---
+      let messageToSend = text;
+      try {
+        const brainContext = await searchBrain(text, 3);
+        if (brainContext.length > 0) {
+          const contextStr = brainContext
+            .map(m => `[Memory: ${m.content}]`)
+            .join('\n');
+          messageToSend = `${contextStr}\n\n${text}`;
+          console.log('🧠 Injected', brainContext.length, 'brain memories as context');
+        }
+      } catch (e) {
+        // Brain search failed — send original message, no problem
+        console.warn('Brain context injection skipped:', e);
+      }
+
       // Send via OpenClaw chat.send
       try {
         await sendRequest('chat.send', {
           sessionKey: 'agent:main:main',
-          message: text,
+          message: messageToSend,
           deliver: true,
           idempotencyKey: generateId()
         });
@@ -1078,6 +1104,73 @@
     function formatTime(ts) {
       const d = new Date(ts);
       return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+
+    // ============================================
+    // OPEN BRAIN INTEGRATION (capture + retrieval)
+    // ============================================
+    const BRAIN_API_URL = 'https://brain.professoroffunk.com';
+    const BRAIN_API_KEY = '70ff2e65c0ba3cd48bfb5b77290719c955be294e30192ea042f0594f234fe262';
+
+    async function storeToBrain(content, source = 'evie', tags = []) {
+      try {
+        const resp = await fetch(BRAIN_API_URL + '/memories', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-brain-key': BRAIN_API_KEY
+          },
+          body: JSON.stringify({ content, source, tags, importance: 0.6 })
+        });
+        if (resp.ok) {
+          console.log('🧠 Stored to Brain:', content.substring(0, 60));
+        }
+        return resp.ok;
+      } catch (e) {
+        console.warn('Brain capture failed:', e);
+        return false;
+      }
+    }
+
+    function isMemoryIntent(text) {
+      const lower = text.toLowerCase().trim();
+      return lower.startsWith('remember ') ||
+             lower.startsWith('save this') ||
+             lower.startsWith('note:') ||
+             lower.startsWith('brain:');
+    }
+
+    function extractMemoryContent(text) {
+      const lower = text.toLowerCase().trim();
+      if (lower.startsWith('remember ')) return text.trim().substring(9).trim();
+      if (lower.startsWith('save this')) return text.trim().substring(9).trim() || text.trim();
+      if (lower.startsWith('note:')) return text.trim().substring(5).trim();
+      if (lower.startsWith('brain:')) return text.trim().substring(6).trim();
+      return text.trim();
+    }
+
+    async function searchBrain(query, limit = 3) {
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 4000); // 4s timeout
+        const resp = await fetch(BRAIN_API_URL + '/memories/search', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-brain-key': BRAIN_API_KEY
+          },
+          body: JSON.stringify({ query, limit }),
+          signal: controller.signal
+        });
+        clearTimeout(timeout);
+        if (!resp.ok) return [];
+        const results = await resp.json();
+        console.log('🧠 Brain search returned', results.length, 'memories');
+        return results;
+      } catch (e) {
+        console.warn('Brain search failed:', e);
+        return [];
+      }
     }
 
     // ============================================
@@ -1215,12 +1308,13 @@
       loading.style.display = '';
       content.style.display = 'none';
 
-      const [status, proposals, brief, deadlines, executor] = await Promise.all([
+      const [status, proposals, brief, deadlines, executor, brainStats] = await Promise.all([
         opsApi('/status'),
         opsApi('/proposals?status=pending&limit=20'),
         opsApi('/brief'),
         opsApi('/deadlines?days=30'),
         opsApi('/executor/status'),
+        fetchBrainStats(),
       ]);
 
       loading.style.display = 'none';
@@ -1236,6 +1330,7 @@
       content.appendChild(renderProposals(proposals));
       content.appendChild(renderBrief(brief));
       content.appendChild(renderDeadlines(deadlines));
+      content.appendChild(renderBrainSection(brainStats));
       content.appendChild(renderRefreshBtn());
     }
 
@@ -1475,6 +1570,116 @@
         `;
         section.appendChild(div);
       });
+
+      return section;
+    }
+
+    async function fetchBrainStats() {
+      try {
+        const resp = await fetch(BRAIN_API_URL + '/stats', {
+          headers: { 'x-brain-key': BRAIN_API_KEY }
+        });
+        if (!resp.ok) return null;
+        return await resp.json();
+      } catch (e) {
+        console.warn('Brain stats fetch failed:', e);
+        return null;
+      }
+    }
+
+    function renderBrainSection(stats) {
+      const section = document.createElement('div');
+      section.className = 'ops-section';
+      section.innerHTML = '<div class="ops-section-title">Brain</div>';
+
+      if (!stats) {
+        section.innerHTML += '<div class="ops-empty">Brain offline</div>';
+        return section;
+      }
+
+      // Stats cards
+      const totalCount = stats.total ?? stats.total_memories ?? 0;
+      const weekCount = stats.this_week ?? stats.memories_this_week ?? 0;
+      const rawTags = stats.top_tags ?? stats.topTags ?? {};
+      // top_tags is {tag: count} object — convert to sorted array
+      const topTags = typeof rawTags === 'object' && !Array.isArray(rawTags)
+        ? Object.entries(rawTags).map(([tag, count]) => ({ tag, count })).sort((a, b) => b.count - a.count)
+        : Array.isArray(rawTags) ? rawTags : [];
+
+      let html = '<div class="brief-card">';
+      html += `<div style="display:flex;gap:16px;margin-bottom:8px;">`;
+      html += `<div><div class="brief-item-meta">Total</div><div class="brief-item-title">${totalCount}</div></div>`;
+      html += `<div><div class="brief-item-meta">This Week</div><div class="brief-item-title">${weekCount}</div></div>`;
+      html += `</div>`;
+
+      if (topTags.length > 0) {
+        html += '<div class="brief-item-meta" style="margin-top:8px;margin-bottom:4px">Top Tags</div>';
+        html += '<div style="display:flex;gap:6px;flex-wrap:wrap">';
+        topTags.slice(0, 5).forEach(t => {
+          const tag = typeof t === 'string' ? t : (t.tag || t.name || '');
+          const count = typeof t === 'object' ? (t.count || '') : '';
+          html += `<span class="ops-pill" style="cursor:default;font-size:11px;padding:4px 10px">${escapeHtml(tag)}${count ? ' (' + count + ')' : ''}</span>`;
+        });
+        html += '</div>';
+      }
+      html += '</div>';
+
+      // Search box
+      html += `<div class="brief-card" style="margin-top:8px">
+        <div class="brief-card-title">Search Memories</div>
+        <div style="display:flex;gap:8px">
+          <input type="text" id="brain-search-input" placeholder="Search brain..." style="flex:1;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-input);color:var(--text);font-family:inherit;font-size:13px;outline:none;">
+          <button class="ops-btn" id="brain-search-btn" style="flex-shrink:0">Search</button>
+        </div>
+        <div id="brain-search-results"></div>
+      </div>`;
+
+      section.innerHTML += html;
+
+      // Wire up search
+      setTimeout(() => {
+        const input = document.getElementById('brain-search-input');
+        const btn = document.getElementById('brain-search-btn');
+        const results = document.getElementById('brain-search-results');
+        if (!input || !btn || !results) return;
+
+        const doSearch = async () => {
+          const query = input.value.trim();
+          if (!query) return;
+          btn.disabled = true;
+          btn.textContent = '...';
+          results.innerHTML = '';
+
+          const memories = await searchBrain(query, 5);
+          btn.disabled = false;
+          btn.textContent = 'Search';
+
+          if (memories.length === 0) {
+            results.innerHTML = '<div class="ops-empty" style="padding:12px">No results</div>';
+            return;
+          }
+
+          let rhtml = '';
+          memories.forEach(m => {
+            const content = m.content || '';
+            const snippet = content.length > 120 ? content.substring(0, 120) + '...' : content;
+            const source = m.source || '';
+            const tags = (m.tags || []).join(', ');
+            const date = m.created_at ? new Date(m.created_at).toLocaleDateString() : '';
+
+            rhtml += `<div style="padding:8px 0;border-bottom:1px solid var(--border)">
+              <div style="font-size:13px;color:var(--text);line-height:1.4">${escapeHtml(snippet)}</div>
+              <div style="font-size:11px;color:var(--text-muted);margin-top:4px">${escapeHtml(source)}${tags ? ' · ' + escapeHtml(tags) : ''}${date ? ' · ' + date : ''}</div>
+            </div>`;
+          });
+          results.innerHTML = rhtml;
+        };
+
+        btn.addEventListener('click', doSearch);
+        input.addEventListener('keypress', (e) => {
+          if (e.key === 'Enter') doSearch();
+        });
+      }, 0);
 
       return section;
     }
