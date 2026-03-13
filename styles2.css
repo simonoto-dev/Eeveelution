@@ -1550,6 +1550,12 @@ header h1 {
   color: #fecaca;
 }
 
+.ops-btn.shelve {
+  background: #374151;
+  border-color: #6b7280;
+  color: #d1d5db;
+}
+
 .ops-btn.expand {
   background: none;
   border: none;
