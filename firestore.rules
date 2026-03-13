@@ -5,6 +5,13 @@ service cloud.firestore {
       allow read: if request.auth.uid == userId;
       allow write: if false; // write via console only
     }
+    match /conversations/{userId}/messages/{messageId} {
+      allow read: if request.auth.uid == userId;
+      allow create: if request.auth.uid == userId
+        && request.resource.data.keys().hasAll(['role', 'content', 'timestamp'])
+        && request.resource.data.role is string
+        && request.resource.data.content is string;
+    }
     match /sessionNotes/{noteId} {
       // Authenticated users can read and create notes
       allow read: if request.auth != null;

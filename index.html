@@ -69,6 +69,10 @@
           <option value="jrpg-paper">Paper: Lined Bubbles</option>
           <option value="jrpg-paper-full">Paper: Full Page</option>
           <option value="jrpg-paper-bleed">Paper: Bleedthrough</option>
+          <option value="glaceon">Glaceon</option>
+          <option value="leafeon">Leafeon</option>
+          <option value="espeon">Espeon</option>
+          <option value="umbreon">Umbreon</option>
         </select>
         <button id="signout-btn">Sign out</button>
       </div>
@@ -77,6 +81,25 @@
     <div id="chat-tab" class="tab-content">
       <div id="chat">
         <div id="loading">✨ Summoning Evie...</div>
+      </div>
+
+      <!-- Reply preview bar -->
+      <div id="reply-preview" class="reply-preview">
+        <span id="reply-preview-text" class="reply-preview-text"></span>
+        <button id="reply-preview-close" class="reply-preview-close">x</button>
+      </div>
+
+      <!-- Paste image preview -->
+      <div id="paste-preview" class="paste-preview">
+        <img id="paste-preview-img" src="" alt="Pasted image">
+        <span class="paste-preview-info">Image ready to send</span>
+        <button id="paste-preview-close" class="paste-preview-close">x</button>
+      </div>
+
+      <!-- Offline banner -->
+      <div id="offline-banner" class="offline-banner">
+        Offline — messages will be queued
+        <span id="offline-queue-count" class="offline-queue-count" style="display:none">0 queued</span>
       </div>
 
       <div id="input-area">
@@ -126,11 +149,120 @@
       </div>
     </div>
 
+    <!-- History Tab -->
+    <div id="history-tab" class="tab-content" style="display: none;">
+      <div class="history-toolbar">
+        <div class="history-search-row">
+          <input type="text" id="history-search" class="history-search-input" placeholder="Search conversations..." autocomplete="off">
+          <button class="history-export-btn" id="history-export-btn" title="Export conversations">Export</button>
+        </div>
+        <div class="history-filters">
+          <button class="history-filter-btn filter-active" data-filter="all">All</button>
+          <button class="history-filter-btn" data-filter="user">My Messages</button>
+          <button class="history-filter-btn" data-filter="assistant">Evie's Messages</button>
+          <button class="history-filter-btn" data-filter="links">Links</button>
+          <button class="history-filter-btn" data-filter="code">Code</button>
+        </div>
+      </div>
+      <div id="history-loading" style="text-align: center; padding: 40px; color: var(--text-muted);">Loading history...</div>
+      <div id="history-list"></div>
+      <div id="history-load-more" style="text-align: center; padding: 16px; display: none;">
+        <button class="ops-btn" id="history-more-btn">Load more</button>
+      </div>
+    </div>
+
+    <!-- Settings Tab -->
+    <div id="settings-tab" class="tab-content" style="display: none;">
+      <div class="settings-section">
+        <div class="settings-section-title">Theme</div>
+        <div class="theme-grid" id="theme-grid"></div>
+      </div>
+
+      <div class="settings-section">
+        <div class="settings-section-title">Theme Schedule</div>
+        <div class="settings-row">
+          <div>
+            <div class="settings-label">Auto-switch by time</div>
+            <div class="settings-sublabel">Themes change based on time of day</div>
+          </div>
+          <div class="settings-toggle" id="theme-schedule-toggle"></div>
+        </div>
+        <div id="theme-schedule-rows" style="display:none">
+          <div class="schedule-row">
+            <span style="font-size:12px;color:var(--text-muted);width:60px">Morning</span>
+            <input type="time" class="schedule-time" id="sched-morning-time" value="07:00">
+            <select class="schedule-theme-select" id="sched-morning-theme"></select>
+          </div>
+          <div class="schedule-row">
+            <span style="font-size:12px;color:var(--text-muted);width:60px">Evening</span>
+            <input type="time" class="schedule-time" id="sched-evening-time" value="19:00">
+            <select class="schedule-theme-select" id="sched-evening-theme"></select>
+          </div>
+          <div class="schedule-row">
+            <span style="font-size:12px;color:var(--text-muted);width:60px">Night</span>
+            <input type="time" class="schedule-time" id="sched-night-time" value="22:00">
+            <select class="schedule-theme-select" id="sched-night-theme"></select>
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <div class="settings-section-title">Evie Personality</div>
+        <div class="settings-row">
+          <div>
+            <div class="settings-label">Response style</div>
+            <div class="personality-labels">
+              <span>Playful</span><span>Professional</span>
+            </div>
+          </div>
+          <input type="range" min="0" max="100" value="30" class="settings-slider" id="personality-slider">
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <div class="settings-section-title">Notifications</div>
+        <div class="settings-row">
+          <div>
+            <div class="settings-label">Message notifications</div>
+            <div class="settings-sublabel">Get notified when Evie responds</div>
+          </div>
+          <div class="settings-toggle" id="notif-toggle"></div>
+        </div>
+        <div class="settings-row">
+          <div>
+            <div class="settings-label">Ops alerts</div>
+            <div class="settings-sublabel">Proposal status changes</div>
+          </div>
+          <div class="settings-toggle" id="ops-notif-toggle"></div>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <div class="settings-section-title">Data</div>
+        <div class="settings-row">
+          <div>
+            <div class="settings-label">Export all conversations</div>
+            <div class="settings-sublabel">Download as JSON</div>
+          </div>
+          <button class="settings-btn" id="export-json-btn">Export JSON</button>
+        </div>
+        <div class="settings-row">
+          <div>
+            <div class="settings-label">Offline cache</div>
+            <div class="settings-sublabel" id="cache-status">Checking...</div>
+          </div>
+          <button class="settings-btn" id="clear-cache-btn">Clear cache</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Bottom Nav -->
     <nav id="bottom-nav">
       <button class="nav-tab active" data-tab="chat">💬 Chat</button>
+      <button class="nav-tab" data-tab="history">📜 History</button>
       <button class="nav-tab" data-tab="ops">📋 Ops</button>
       <button class="nav-tab" data-tab="term">⌨ Term</button>
+      <button class="nav-tab" data-tab="settings">⚙ Settings</button>
     </nav>
   </div>
 
@@ -138,7 +270,7 @@
     // ============================================
     // AUTO-UPDATE CHECK
     // ============================================
-    const APP_VERSION = '2026-03-04b';
+    const APP_VERSION = '2026-03-13b';
     // On load, fetch index.html and check if version changed
     if (!sessionStorage.getItem('version-checked')) {
       sessionStorage.setItem('version-checked', '1');
@@ -155,11 +287,22 @@
     }
 
     // ============================================
+    // SERVICE WORKER REGISTRATION
+    // ============================================
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').then(reg => {
+        console.log('SW registered:', reg.scope);
+      }).catch(err => {
+        console.warn('SW registration failed:', err);
+      });
+    }
+
+    // ============================================
     // FIREBASE & AUTH
     // ============================================
     import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
     import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
-    import { getFirestore, doc, getDoc } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+    import { getFirestore, doc, getDoc, collection, addDoc, query, where, orderBy, limit as firestoreLimit, getDocs, Timestamp, startAfter } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
 
     const firebaseConfig = {
       apiKey: "AIzaSyCntodkV9WMDQOPaSUWH-VuURXWFj38erM",
@@ -867,9 +1010,13 @@
       if (revealTimer) { clearInterval(revealTimer); revealTimer = null; }
       revealedLength = 0;
 
-      // Remove blinking cursor
+      // Remove blinking cursor and render markdown
       const contentEl = currentStreamingMessage.element.querySelector('.streaming-content');
-      if (contentEl) contentEl.classList.remove('streaming-content');
+      if (contentEl) {
+        contentEl.classList.remove('streaming-content');
+        // Apply markdown rendering to the final content
+        contentEl.innerHTML = renderMarkdown(currentStreamingMessage.content);
+      }
 
       // Remove typing indicator
       const typingEl = currentStreamingMessage.element.querySelector('.typing-indicator');
@@ -962,11 +1109,51 @@
     }
 
     async function sendMessage(text) {
-      if (!text.trim()) return;
+      if (!text.trim() && !pastedImageFile) return;
 
-      // Add user's message
-      addMessage('user', text, 'text');
+      // Handle pasted image
+      if (pastedImageFile) {
+        const file = pastedImageFile;
+        pastedImageFile = null;
+        document.getElementById('paste-preview').classList.remove('visible');
+        // For now, upload to Firebase Storage if available, or show locally
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          addMessage('user', text || '[Image]', 'image', ev.target.result);
+        };
+        reader.readAsDataURL(file);
+        inputEl.value = '';
+        return;
+      }
+
+      // Build reply reference
+      const replyRef = replyingTo ? { ...replyingTo } : null;
+      clearReply();
+
+      // Add user's message with reply context
+      const msg = {
+        id: Date.now().toString(),
+        role: 'user',
+        content: text,
+        type: 'text',
+        imageUrl: null,
+        timestamp: Date.now(),
+        replyTo: replyRef,
+      };
+      messages.push(msg);
+      persistMessage(msg);
+      renderMessage(msg);
+      chatEl.scrollTop = chatEl.scrollHeight;
       inputEl.value = '';
+
+      // If offline, queue and return
+      if (isOffline || !wsAuthenticated) {
+        offlineQueue.push({ text, timestamp: Date.now() });
+        localStorage.setItem('eevee.offlineQueue', JSON.stringify(offlineQueue));
+        updateOfflineUI();
+        addMessage('assistant', '(You are offline. Message queued and will be sent when reconnected.)', 'text');
+        return;
+      }
 
       // Show thinking indicator immediately
       showThinkingIndicator();
@@ -983,13 +1170,28 @@
 
       // --- Brain Retrieval: search for relevant context (non-blocking) ---
       let messageToSend = text;
+
+      // Add personality hint
+      const personality = parseInt(localStorage.getItem('eevee.personality') || '30');
+      if (personality > 60) {
+        messageToSend = '[System: respond in a professional, concise tone]\n' + messageToSend;
+      } else if (personality < 30) {
+        messageToSend = '[System: respond in a playful, warm, friendly tone]\n' + messageToSend;
+      }
+
+      // Add reply context
+      if (replyRef) {
+        const quoteName = replyRef.role === 'user' ? 'Simon' : 'Evie';
+        messageToSend = `[Replying to ${quoteName}: "${replyRef.content.substring(0, 100)}"]\n${messageToSend}`;
+      }
+
       try {
         const brainContext = await searchBrain(text, 3);
         if (brainContext.length > 0) {
           const contextStr = brainContext
             .map(m => `[Memory: ${m.content}]`)
             .join('\n');
-          messageToSend = `${contextStr}\n\n${text}`;
+          messageToSend = `${contextStr}\n\n${messageToSend}`;
           console.log('🧠 Injected', brainContext.length, 'brain memories as context');
         }
       } catch (e) {
@@ -1013,36 +1215,51 @@
       }
     }
 
-    function addMessage(role, content, type = 'text', imageUrl = null) {
+    function addMessage(role, content, type = 'text', imageUrl = null, replyTo = null) {
       const msg = {
         id: Date.now().toString(),
         role,
         content,
         type,
         imageUrl,
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        replyTo: replyTo || null,
       };
       messages.push(msg);
+
+      // Persist to Firestore for history
+      persistMessage(msg);
 
       // Don't re-render if we're streaming
       if (!currentStreamingMessage || role === 'user') {
         renderMessage(msg);
       }
-      
+
       chatEl.scrollTop = chatEl.scrollHeight;
+
+      // Cache for offline
+      cacheMessagesLocally();
     }
 
     function renderMessage(msg) {
       const div = document.createElement('div');
       div.className = `message ${msg.role}`;
-      
+      div.dataset.msgId = msg.id;
+
       const avatarImg = msg.role === 'assistant'
         ? '<img src="bones-3.png" alt="Evie">'
         : '<img src="simon-avatar.png" alt="You">';
       const avatarClass = msg.role === 'assistant' ? 'assistant' : 'user';
-      
+
       let contentHtml = '';
-      
+      let quoteHtml = '';
+
+      // Render quote if this message is a reply
+      if (msg.replyTo) {
+        const roleName = msg.replyTo.role === 'user' ? 'You' : 'Evie';
+        quoteHtml = `<div class="quoted-message"><span class="quoted-message-role">${roleName}</span> ${escapeHtml(msg.replyTo.content.substring(0, 60))}${msg.replyTo.content.length > 60 ? '...' : ''}</div>`;
+      }
+
       if (msg.type === 'voice') {
         contentHtml = `
           <div class="voice-message">
@@ -1059,18 +1276,55 @@
           <p>${escapeHtml(msg.content)}</p>
         `;
       } else {
-        contentHtml = `<p>${escapeHtml(msg.content)}</p>`;
+        // Render markdown for assistant messages, escape for user
+        contentHtml = msg.role === 'assistant'
+          ? `<div>${renderMarkdown(msg.content)}</div>`
+          : `<p>${escapeHtml(msg.content)}</p>`;
       }
+
+      // Reaction picker and container
+      const reactionPickerBtns = REACTION_EMOJIS.map(e => `<button class="reaction-picker-btn" data-emoji="${e}">${e}</button>`).join('');
 
       div.innerHTML = `
         <div class="avatar ${avatarClass}">${avatarImg}</div>
-        <div class="bubble">
+        <div class="bubble" style="position:relative">
+          ${quoteHtml}
           ${contentHtml}
           <div class="time">${formatTime(msg.timestamp)}</div>
+          <div class="message-reactions" id="reactions-${msg.id}"></div>
+          <div class="reaction-picker" id="picker-${msg.id}">${reactionPickerBtns}</div>
         </div>
       `;
 
+      // Wire reaction picker buttons
+      div.querySelectorAll('.reaction-picker-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          toggleReaction(msg.id, btn.dataset.emoji);
+          document.getElementById('picker-' + msg.id)?.classList.remove('visible');
+        });
+      });
+
+      // Tap bubble to show reaction picker (brief)
+      const bubbleEl = div.querySelector('.bubble');
+      bubbleEl.addEventListener('dblclick', (e) => {
+        e.stopPropagation();
+        showReactionPicker(msg.id);
+      });
+
+      // Close picker on outside click
+      document.addEventListener('click', () => {
+        div.querySelector('.reaction-picker')?.classList.remove('visible');
+      }, { once: false });
+
+      // Long press and swipe to reply
+      initLongPress(div, msg.id, msg.role, msg.content);
+      initSwipeToReply(div, msg.id, msg.role, msg.content);
+
       chatEl.appendChild(div);
+
+      // Cache messages locally for offline
+      cacheMessagesLocally();
     }
 
     // ============================================
@@ -1254,13 +1508,18 @@
     const themeSelect = document.getElementById('theme-select');
 
     // Theme switching
+    const ALL_THEMES = ['anime', 'jrpg', 'jrpg-paper', 'jrpg-paper-full', 'jrpg-paper-bleed', 'glaceon', 'leafeon', 'espeon', 'umbreon'];
     function setTheme(theme) {
-      document.body.classList.remove('theme-anime', 'theme-jrpg', 'theme-jrpg-paper', 'theme-jrpg-paper-full', 'theme-jrpg-paper-bleed');
+      ALL_THEMES.forEach(t => document.body.classList.remove('theme-' + t));
       if (theme !== 'anime') {
         document.body.classList.add('theme-' + theme);
       }
       localStorage.setItem('eevee.theme', theme);
       themeSelect.value = theme;
+      // Update theme preview cards active state
+      document.querySelectorAll('.theme-preview-card').forEach(c => {
+        c.classList.toggle('active', c.dataset.theme === theme);
+      });
     }
 
     // Load saved theme or default to anime
@@ -1283,8 +1542,10 @@
         tab.classList.add('active');
         document.querySelectorAll('.tab-content').forEach(c => c.style.display = 'none');
         document.getElementById(target + '-tab').style.display = '';
-        if (target === 'ops') loadOps();
+        if (target === 'ops') { loadOps(); startOpsPolling(); } else { stopOpsPolling(); }
+        if (target === 'history') { if (!historyLoaded) loadHistory(); }
         if (target === 'term') initTerminal();
+        if (target === 'settings') initSettingsTab();
       });
     });
 
@@ -1308,13 +1569,14 @@
       loading.style.display = '';
       content.style.display = 'none';
 
-      const [status, proposals, brief, deadlines, executor, brainStats] = await Promise.all([
+      const [status, proposals, brief, deadlines, executor, brainStats, overview] = await Promise.all([
         opsApi('/status'),
-        opsApi('/proposals?status=pending&limit=20'),
+        opsApi('/proposals?limit=500'),
         opsApi('/brief'),
         opsApi('/deadlines?days=30'),
         opsApi('/executor/status'),
         fetchBrainStats(),
+        opsApi('/overview'),
       ]);
 
       loading.style.display = 'none';
@@ -1327,6 +1589,11 @@
       }
 
       content.appendChild(renderStatusBar(status, executor));
+      content.appendChild(renderProposalStats(proposals));
+      content.appendChild(renderActivityTimeline(proposals));
+      content.appendChild(renderExecutorStatus(proposals));
+      content.appendChild(renderBudgetBurnChart(proposals));
+      content.appendChild(renderSystemDiagnostics(overview, status));
       content.appendChild(renderProposals(proposals));
       content.appendChild(renderBrief(brief));
       content.appendChild(renderDeadlines(deadlines));
@@ -1375,6 +1642,362 @@
       return section;
     }
 
+    // ============================================
+    // PROPOSAL STATS CARD
+    // ============================================
+    function renderProposalStats(proposals) {
+      const section = document.createElement('div');
+      section.className = 'ops-section';
+      section.innerHTML = '<div class="ops-section-title">Proposal Stats</div>';
+
+      const allItems = Array.isArray(proposals) ? proposals : [];
+      if (allItems.length === 0) {
+        section.innerHTML += '<div class="ops-empty">No proposal data</div>';
+        return section;
+      }
+
+      // Calculate stats
+      const total = allItems.length;
+      const shipped = allItems.filter(p => p.status === 'shipped').length;
+      const resolved = allItems.filter(p => ['shipped', 'shelved', 'rejected'].includes(p.status)).length;
+      const successRate = resolved > 0 ? Math.round((shipped / resolved) * 100) : 0;
+
+      // Average completion time (created_at -> resolved_at for shipped proposals)
+      let avgHours = null;
+      const shippedWithTimes = allItems.filter(p => p.status === 'shipped' && p.created_at && p.resolved_at);
+      if (shippedWithTimes.length > 0) {
+        const totalMs = shippedWithTimes.reduce((sum, p) => {
+          const created = new Date(p.created_at + (p.created_at.includes('Z') ? '' : 'Z'));
+          const resolved = new Date(p.resolved_at + (p.resolved_at.includes('Z') ? '' : 'Z'));
+          return sum + (resolved - created);
+        }, 0);
+        avgHours = (totalMs / shippedWithTimes.length / 3600000).toFixed(1);
+      }
+
+      // Domain breakdown
+      const domainCounts = {};
+      allItems.forEach(p => {
+        const d = p.domain || 'unknown';
+        domainCounts[d] = (domainCounts[d] || 0) + 1;
+      });
+      const sortedDomains = Object.entries(domainCounts).sort((a, b) => b[1] - a[1]);
+
+      // Success rate color
+      let rateColor = '#ef4444'; // red
+      if (successRate >= 70) rateColor = '#22c55e'; // green
+      else if (successRate >= 40) rateColor = '#eab308'; // yellow
+
+      let html = '<div class="dx-stats-grid">';
+      html += `<div class="dx-stat-card">
+        <div class="dx-stat-value" style="color:${rateColor}">${successRate}%</div>
+        <div class="dx-stat-label">Success Rate</div>
+      </div>`;
+      html += `<div class="dx-stat-card">
+        <div class="dx-stat-value">${shipped}<span class="dx-stat-sub">/${total}</span></div>
+        <div class="dx-stat-label">Shipped / Total</div>
+      </div>`;
+      html += `<div class="dx-stat-card">
+        <div class="dx-stat-value">${avgHours !== null ? avgHours + 'h' : '--'}</div>
+        <div class="dx-stat-label">Avg Completion</div>
+      </div>`;
+      html += `<div class="dx-stat-card">
+        <div class="dx-stat-value">${resolved}</div>
+        <div class="dx-stat-label">Resolved</div>
+      </div>`;
+      html += '</div>';
+
+      // Domain chips
+      if (sortedDomains.length > 0) {
+        html += '<div class="dx-domain-chips">';
+        sortedDomains.forEach(([domain, count]) => {
+          html += `<span class="dx-domain-chip">${escapeHtml(domain)} <span class="dx-chip-count">${count}</span></span>`;
+        });
+        html += '</div>';
+      }
+
+      section.innerHTML += html;
+      return section;
+    }
+
+    // ============================================
+    // ACTIVITY TIMELINE (7-day bar chart)
+    // ============================================
+    function renderActivityTimeline(proposals) {
+      const section = document.createElement('div');
+      section.className = 'ops-section';
+      section.innerHTML = '<div class="ops-section-title">7-Day Activity</div>';
+
+      const allItems = Array.isArray(proposals) ? proposals : [];
+
+      // Build 7-day buckets
+      const days = [];
+      const dayLabels = [];
+      const now = new Date();
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date(now);
+        d.setDate(d.getDate() - i);
+        const key = d.toISOString().slice(0, 10);
+        days.push(key);
+        dayLabels.push(d.toLocaleDateString('en-US', { weekday: 'short' }));
+      }
+
+      const created = {};
+      const shippedMap = {};
+      days.forEach(d => { created[d] = 0; shippedMap[d] = 0; });
+
+      allItems.forEach(p => {
+        if (p.created_at) {
+          const cDay = p.created_at.slice(0, 10);
+          if (created[cDay] !== undefined) created[cDay]++;
+        }
+        if (p.status === 'shipped' && p.resolved_at) {
+          const sDay = p.resolved_at.slice(0, 10);
+          if (shippedMap[sDay] !== undefined) shippedMap[sDay]++;
+        }
+      });
+
+      const maxVal = Math.max(1, ...days.map(d => Math.max(created[d], shippedMap[d])));
+
+      // Render SVG bar chart
+      const chartW = 320;
+      const chartH = 120;
+      const barW = 16;
+      const gap = (chartW - 7 * barW * 2 - 6 * 4) / 2;
+      const padTop = 10;
+      const padBot = 24;
+      const drawH = chartH - padTop - padBot;
+
+      let svg = `<svg class="dx-timeline-svg" viewBox="0 0 ${chartW} ${chartH}" preserveAspectRatio="xMidYMid meet">`;
+
+      // Gridlines
+      for (let i = 0; i <= 3; i++) {
+        const y = padTop + (drawH / 3) * i;
+        svg += `<line x1="0" y1="${y}" x2="${chartW}" y2="${y}" stroke="var(--border)" stroke-width="0.5" stroke-dasharray="4,4"/>`;
+      }
+
+      days.forEach((day, i) => {
+        const groupX = gap + i * ((chartW - gap * 2) / 7) + ((chartW - gap * 2) / 7 - barW * 2 - 2) / 2;
+        const cH = (created[day] / maxVal) * drawH;
+        const sH = (shippedMap[day] / maxVal) * drawH;
+
+        // Created bar (blue)
+        svg += `<rect x="${groupX}" y="${padTop + drawH - cH}" width="${barW}" height="${cH}" rx="3" fill="#3b82f6" opacity="0.85"/>`;
+        // Shipped bar (green)
+        svg += `<rect x="${groupX + barW + 2}" y="${padTop + drawH - sH}" width="${barW}" height="${sH}" rx="3" fill="#22c55e" opacity="0.85"/>`;
+
+        // Day label
+        const labelX = groupX + barW + 1;
+        svg += `<text x="${labelX}" y="${chartH - 4}" text-anchor="middle" fill="var(--text-muted)" font-size="9" font-family="inherit">${dayLabels[i]}</text>`;
+      });
+
+      svg += '</svg>';
+
+      // Legend
+      let html = '<div class="dx-timeline-card">';
+      html += svg;
+      html += '<div class="dx-timeline-legend">';
+      html += '<span class="dx-legend-item"><span class="dx-legend-dot" style="background:#3b82f6"></span>Created</span>';
+      html += '<span class="dx-legend-item"><span class="dx-legend-dot" style="background:#22c55e"></span>Shipped</span>';
+      html += `<span class="dx-legend-item" style="margin-left:auto;color:var(--text-muted);font-size:11px">max: ${maxVal}</span>`;
+      html += '</div></div>';
+
+      section.innerHTML += html;
+      return section;
+    }
+
+    // ============================================
+    // EXECUTOR STATUS (last 5 completed)
+    // ============================================
+    function renderExecutorStatus(proposals) {
+      const section = document.createElement('div');
+      section.className = 'ops-section';
+      section.innerHTML = '<div class="ops-section-title">Executor: Recent Completions <span class="ops-feed-indicator"><span class="ops-feed-dot"></span> live</span></div>';
+
+      const allItems = Array.isArray(proposals) ? proposals : [];
+      const completed = allItems
+        .filter(p => p.status === 'shipped' && p.resolved_at)
+        .sort((a, b) => (b.resolved_at || '').localeCompare(a.resolved_at || ''))
+        .slice(0, 5);
+
+      if (completed.length === 0) {
+        section.innerHTML += '<div class="ops-empty">No recent completions</div>';
+        return section;
+      }
+
+      const listDiv = document.createElement('div');
+      listDiv.className = 'ops-executor-list';
+      completed.forEach(p => {
+        const time = p.resolved_at ? new Date(p.resolved_at + (p.resolved_at.includes('Z') ? '' : 'Z')).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+        const item = document.createElement('div');
+        item.className = 'ops-executor-item';
+        item.innerHTML = `
+          <span class="ops-executor-item-title">${escapeHtml(p.title || 'Untitled')}</span>
+          <span class="ops-executor-item-status">${escapeHtml(time)}</span>
+        `;
+        listDiv.appendChild(item);
+      });
+      section.appendChild(listDiv);
+      return section;
+    }
+
+    // ============================================
+    // BUDGET BURN RATE CHART (last 7 days)
+    // ============================================
+    function renderBudgetBurnChart(proposals) {
+      const section = document.createElement('div');
+      section.className = 'ops-section';
+      section.innerHTML = '<div class="ops-section-title">Budget Burn Rate (7 days)</div>';
+
+      const allItems = Array.isArray(proposals) ? proposals : [];
+
+      // Simulate budget burn: count calls per day as a proxy
+      const days = [];
+      const now = new Date();
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date(now);
+        d.setDate(d.getDate() - i);
+        days.push(d.toISOString().slice(0, 10));
+      }
+
+      const dayLabels = days.map(d => new Date(d + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short' }));
+      const callsPerDay = {};
+      days.forEach(d => callsPerDay[d] = 0);
+
+      allItems.forEach(p => {
+        if (p.created_at) {
+          const day = p.created_at.slice(0, 10);
+          if (callsPerDay[day] !== undefined) callsPerDay[day]++;
+        }
+      });
+
+      const maxCalls = Math.max(1, ...days.map(d => callsPerDay[d]));
+      const chartW = 320;
+      const chartH = 80;
+      const padL = 10;
+      const padR = 10;
+      const padTop = 10;
+      const padBot = 20;
+      const drawW = chartW - padL - padR;
+      const drawH = chartH - padTop - padBot;
+
+      let points = days.map((d, i) => {
+        const x = padL + (i / 6) * drawW;
+        const y = padTop + drawH - (callsPerDay[d] / maxCalls) * drawH;
+        return `${x},${y}`;
+      });
+
+      let svg = `<svg class="burn-chart-svg" viewBox="0 0 ${chartW} ${chartH}" preserveAspectRatio="xMidYMid meet">`;
+      // Grid line
+      svg += `<line x1="${padL}" y1="${padTop + drawH}" x2="${padL + drawW}" y2="${padTop + drawH}" stroke="var(--border)" stroke-width="0.5"/>`;
+      // Area fill
+      svg += `<polygon points="${padL},${padTop + drawH} ${points.join(' ')} ${padL + drawW},${padTop + drawH}" fill="var(--accent)" opacity="0.15"/>`;
+      // Line
+      svg += `<polyline points="${points.join(' ')}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`;
+      // Dots
+      days.forEach((d, i) => {
+        const x = padL + (i / 6) * drawW;
+        const y = padTop + drawH - (callsPerDay[d] / maxCalls) * drawH;
+        svg += `<circle cx="${x}" cy="${y}" r="3" fill="var(--accent)"/>`;
+        svg += `<text x="${x}" y="${chartH - 2}" text-anchor="middle" fill="var(--text-muted)" font-size="9">${dayLabels[i]}</text>`;
+      });
+      svg += '</svg>';
+
+      section.innerHTML += `<div class="burn-chart-card">${svg}</div>`;
+      return section;
+    }
+
+    // ============================================
+    // SYSTEM DIAGNOSTICS PANEL
+    // ============================================
+    function renderSystemDiagnostics(overview, status) {
+      const section = document.createElement('div');
+      section.className = 'ops-section';
+      section.innerHTML = '<div class="ops-section-title">System Diagnostics</div>';
+
+      if (!overview) {
+        section.innerHTML += '<div class="ops-empty">Diagnostics unavailable</div>';
+        return section;
+      }
+
+      let html = '<div class="dx-diag-grid">';
+
+      // Orchestrator status
+      const paceIcon = { full: '🟢', slow: '🟡', pause: '🟠', stop: '🔴' }[overview.pace] || '⚪';
+      const modeIcon = overview.mode === 'awake' ? '☀️' : '🌙';
+      html += `<div class="dx-diag-card">
+        <div class="dx-diag-title">Orchestrator</div>
+        <div class="dx-diag-row"><span>Status</span><span>${paceIcon} ${escapeHtml(overview.pace || '--')}</span></div>
+        <div class="dx-diag-row"><span>Mode</span><span>${modeIcon} ${escapeHtml(overview.mode || '--')}</span></div>
+        <div class="dx-diag-row"><span>Auto-GL</span><span>${overview.autoGreenlight ? '✅ On' : '⬜ Off'}</span></div>
+      </div>`;
+
+      // Executor
+      const exec = overview.executor || {};
+      const execDot = exec.connected ? '🟢' : '🔴';
+      const lastPoll = exec.lastPoll ? new Date(exec.lastPoll).toLocaleTimeString() : '--';
+      html += `<div class="dx-diag-card">
+        <div class="dx-diag-title">Executor</div>
+        <div class="dx-diag-row"><span>Connected</span><span>${execDot} ${exec.connected ? 'Yes' : 'No'}</span></div>
+        <div class="dx-diag-row"><span>Last Poll</span><span>${escapeHtml(lastPoll)}</span></div>
+        <div class="dx-diag-row"><span>Preference</span><span>${escapeHtml(exec.preference || 'auto')}</span></div>
+      </div>`;
+
+      // Budget
+      const budget = overview.budget || {};
+      const spent = budget.spent?.toFixed(2) || '0.00';
+      const ceiling = budget.ceiling || 50;
+      const remaining = budget.remaining?.toFixed(2) || ceiling;
+      const budgetPct = Math.round((budget.spent / ceiling) * 100) || 0;
+      const budgetColor = budgetPct > 80 ? '#ef4444' : budgetPct > 50 ? '#eab308' : '#22c55e';
+      html += `<div class="dx-diag-card">
+        <div class="dx-diag-title">Budget (24h)</div>
+        <div class="dx-diag-row"><span>Spent</span><span style="color:${budgetColor}">$${spent}</span></div>
+        <div class="dx-diag-row"><span>Remaining</span><span>$${remaining}</span></div>
+        <div class="dx-diag-row"><span>Calls</span><span>${budget.callsToday || 0}</span></div>
+      </div>`;
+
+      // Proposal counts from overview
+      const props = overview.proposals || {};
+      html += `<div class="dx-diag-card">
+        <div class="dx-diag-title">Pipeline</div>
+        <div class="dx-diag-row"><span>Pending</span><span>${props.pending || 0}</span></div>
+        <div class="dx-diag-row"><span>Executing</span><span>${props.executing || 0}</span></div>
+        <div class="dx-diag-row"><span>Greenlit</span><span>${props.greenlit || 0}</span></div>
+      </div>`;
+
+      html += '</div>';
+
+      // Nodes
+      const nodes = overview.nodes || [];
+      if (nodes.length > 0) {
+        html += '<div class="dx-diag-nodes">';
+        html += '<div class="dx-diag-subtitle">Nodes</div>';
+        nodes.forEach(n => {
+          const nDot = n.status === 'online' || n.reachable ? '🟢' : '🔴';
+          const nStatus = n.status || (n.reachable ? 'online' : 'offline');
+          html += `<div class="dx-diag-row"><span>${nDot} ${escapeHtml(n.name || n.host || 'unknown')}</span><span>${escapeHtml(nStatus)}</span></div>`;
+        });
+        html += '</div>';
+      }
+
+      // Anomalies
+      if (overview.anomalies && overview.anomalies.length > 0) {
+        html += '<div class="dx-diag-anomalies">';
+        html += '<div class="dx-diag-subtitle" style="color:#f87171">Anomalies</div>';
+        overview.anomalies.forEach(a => {
+          const text = typeof a === 'string' ? a : (a.type || a.detail || JSON.stringify(a));
+          html += `<div class="dx-diag-anomaly">${escapeHtml(text)}</div>`;
+        });
+        html += '</div>';
+      }
+
+      section.innerHTML += html;
+      return section;
+    }
+
+    // Proposal explorer state
+    const proposalState = { filter: 'pending', search: '', sort: 'newest', domain: 'all' };
+
     function renderProposals(proposals) {
       const section = document.createElement('div');
       section.className = 'ops-section';
@@ -1399,6 +2022,10 @@
             <button class="ops-btn approve" data-id="${p.id}">Approve</button>
             <button class="ops-btn reject" data-id="${p.id}">Reject</button>
           </div>
+          <div class="proposal-note-input">
+            <input type="text" placeholder="Add a note..." data-note-id="${p.id}">
+            <button class="ops-btn" data-note-submit="${p.id}">Note</button>
+          </div>
         `;
 
         card.querySelector('.ops-btn.expand').addEventListener('click', (e) => {
@@ -1415,7 +2042,7 @@
           loadOps();
         });
 
-        card.querySelector('.ops-btn.reject').addEventListener('click', async () => {
+        card.querySelector('.ops-btn.reject')?.addEventListener('click', async () => {
           await opsApi('/proposals/' + p.id + '/resolve', {
             method: 'POST',
             body: { status: 'rejected' },
@@ -1423,7 +2050,23 @@
           loadOps();
         });
 
-        section.appendChild(card);
+        // Wire note submit
+        const noteBtn = card.querySelector('[data-note-submit]');
+        if (noteBtn) {
+          noteBtn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            const noteInput = card.querySelector('[data-note-id]');
+            const noteText = noteInput?.value?.trim();
+            if (!noteText) return;
+            await opsApi('/proposals/' + noteBtn.dataset.noteSubmit + '/notes', {
+              method: 'POST',
+              body: { note: noteText },
+            });
+            noteInput.value = '';
+          });
+        }
+
+        container.appendChild(card);
       });
 
       return section;
@@ -1690,6 +2333,714 @@
       btn.textContent = '↻ Refresh';
       btn.addEventListener('click', loadOps);
       return btn;
+    }
+
+    // ============================================
+    // CONVERSATION HISTORY (Firestore persistence)
+    // ============================================
+    const HISTORY_PAGE_SIZE = 50;
+    let historyMessages = [];
+    let historyLastDoc = null;
+    let historyHasMore = true;
+    let historyFilter = 'all';
+    let historySearchQuery = '';
+    let historyLoaded = false;
+
+    // Save a message to Firestore
+    async function persistMessage(msg) {
+      if (!currentUser) return;
+      try {
+        const messagesRef = collection(db, 'conversations', currentUser.uid, 'messages');
+        await addDoc(messagesRef, {
+          role: msg.role,
+          content: msg.content,
+          type: msg.type || 'text',
+          imageUrl: msg.imageUrl || null,
+          timestamp: Timestamp.fromDate(new Date(msg.timestamp)),
+          createdAt: Timestamp.now()
+        });
+      } catch (e) {
+        console.warn('Failed to persist message:', e);
+      }
+    }
+
+    // Load history messages from Firestore
+    async function loadHistory(append = false) {
+      if (!currentUser) return;
+
+      const loadingEl = document.getElementById('history-loading');
+      const listEl = document.getElementById('history-list');
+      const moreEl = document.getElementById('history-load-more');
+
+      if (!append) {
+        loadingEl.style.display = '';
+        listEl.innerHTML = '';
+        historyMessages = [];
+        historyLastDoc = null;
+        historyHasMore = true;
+      }
+
+      try {
+        const messagesRef = collection(db, 'conversations', currentUser.uid, 'messages');
+        let q;
+        if (historyLastDoc && append) {
+          q = query(messagesRef, orderBy('timestamp', 'desc'), startAfter(historyLastDoc), firestoreLimit(HISTORY_PAGE_SIZE));
+        } else {
+          q = query(messagesRef, orderBy('timestamp', 'desc'), firestoreLimit(HISTORY_PAGE_SIZE));
+        }
+
+        const snapshot = await getDocs(q);
+        const newMessages = [];
+        snapshot.forEach(docSnap => {
+          const data = docSnap.data();
+          newMessages.push({
+            id: docSnap.id,
+            role: data.role,
+            content: data.content,
+            type: data.type || 'text',
+            imageUrl: data.imageUrl,
+            timestamp: data.timestamp?.toDate?.() ? data.timestamp.toDate().getTime() : Date.now()
+          });
+        });
+
+        if (snapshot.docs.length > 0) {
+          historyLastDoc = snapshot.docs[snapshot.docs.length - 1];
+        }
+        historyHasMore = snapshot.docs.length === HISTORY_PAGE_SIZE;
+
+        historyMessages = append ? [...historyMessages, ...newMessages] : newMessages;
+        historyLoaded = true;
+        renderHistory();
+      } catch (e) {
+        console.error('Failed to load history:', e);
+        listEl.innerHTML = '<div class="ops-empty">Failed to load history</div>';
+      } finally {
+        loadingEl.style.display = 'none';
+      }
+    }
+
+    // Filter and render history
+    function renderHistory() {
+      const listEl = document.getElementById('history-list');
+      const moreEl = document.getElementById('history-load-more');
+      if (!listEl) return;
+
+      let filtered = [...historyMessages];
+
+      // Apply role filter
+      if (historyFilter === 'user') {
+        filtered = filtered.filter(m => m.role === 'user');
+      } else if (historyFilter === 'assistant') {
+        filtered = filtered.filter(m => m.role === 'assistant');
+      } else if (historyFilter === 'links') {
+        filtered = filtered.filter(m => /https?:\/\/[^\s]+/.test(m.content));
+      } else if (historyFilter === 'code') {
+        filtered = filtered.filter(m => /```|`[^`]+`|function\s|const\s|let\s|var\s|import\s|class\s/.test(m.content));
+      }
+
+      // Apply search
+      if (historySearchQuery) {
+        const q = historySearchQuery.toLowerCase();
+        filtered = filtered.filter(m => m.content.toLowerCase().includes(q));
+      }
+
+      if (filtered.length === 0) {
+        listEl.innerHTML = '<div class="ops-empty" style="padding: 40px;">No messages found</div>';
+        moreEl.style.display = 'none';
+        return;
+      }
+
+      // Group by date
+      const groups = {};
+      filtered.forEach(m => {
+        const date = new Date(m.timestamp);
+        const key = date.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+        if (!groups[key]) groups[key] = [];
+        groups[key].push(m);
+      });
+
+      let html = '';
+      for (const [dateLabel, msgs] of Object.entries(groups)) {
+        html += `<div class="history-date-group">
+          <div class="history-date-label">${escapeHtml(dateLabel)}</div>`;
+        msgs.forEach(m => {
+          const time = new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          const roleClass = m.role === 'user' ? 'history-msg-user' : 'history-msg-assistant';
+          const roleLabel = m.role === 'user' ? 'You' : 'Evie';
+          let contentHtml = escapeHtml(m.content);
+          // Highlight search matches
+          if (historySearchQuery) {
+            const regex = new RegExp(`(${historySearchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+            contentHtml = contentHtml.replace(regex, '<mark class="history-highlight">$1</mark>');
+          }
+          html += `<div class="history-message ${roleClass}">
+            <div class="history-msg-header">
+              <span class="history-msg-role">${roleLabel}</span>
+              <span class="history-msg-time">${time}</span>
+            </div>
+            <div class="history-msg-content">${contentHtml}</div>
+          </div>`;
+        });
+        html += '</div>';
+      }
+
+      listEl.innerHTML = html;
+      moreEl.style.display = historyHasMore ? '' : 'none';
+    }
+
+    // Export conversation history
+    function exportHistory(format = 'markdown') {
+      if (historyMessages.length === 0) {
+        alert('No messages to export');
+        return;
+      }
+
+      // Use all loaded messages (not just filtered)
+      const sorted = [...historyMessages].sort((a, b) => a.timestamp - b.timestamp);
+      let output = '';
+
+      if (format === 'markdown') {
+        output = '# Conversation History - The Familiar\n';
+        output += `Exported: ${new Date().toLocaleString()}\n\n---\n\n`;
+        let currentDate = '';
+        sorted.forEach(m => {
+          const date = new Date(m.timestamp).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+          if (date !== currentDate) {
+            currentDate = date;
+            output += `## ${date}\n\n`;
+          }
+          const time = new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          const role = m.role === 'user' ? '**You**' : '**Evie**';
+          output += `${role} (${time}):\n${m.content}\n\n`;
+        });
+      } else {
+        output = 'Conversation History - The Familiar\n';
+        output += `Exported: ${new Date().toLocaleString()}\n`;
+        output += '='.repeat(50) + '\n\n';
+        let currentDate = '';
+        sorted.forEach(m => {
+          const date = new Date(m.timestamp).toLocaleDateString();
+          if (date !== currentDate) {
+            currentDate = date;
+            output += `--- ${date} ---\n\n`;
+          }
+          const time = new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          const role = m.role === 'user' ? 'You' : 'Evie';
+          output += `[${time}] ${role}: ${m.content}\n\n`;
+        });
+      }
+
+      // Create download
+      const blob = new Blob([output], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `evie-chat-${new Date().toISOString().slice(0, 10)}.${format === 'markdown' ? 'md' : 'txt'}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    // Wire up history tab controls
+    function initHistoryControls() {
+      const searchInput = document.getElementById('history-search');
+      const exportBtn = document.getElementById('history-export-btn');
+      const moreBtn = document.getElementById('history-more-btn');
+
+      let searchDebounce = null;
+      searchInput.addEventListener('input', () => {
+        clearTimeout(searchDebounce);
+        searchDebounce = setTimeout(() => {
+          historySearchQuery = searchInput.value.trim();
+          renderHistory();
+        }, 300);
+      });
+
+      document.querySelectorAll('.history-filter-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.history-filter-btn').forEach(b => b.classList.remove('filter-active'));
+          btn.classList.add('filter-active');
+          historyFilter = btn.dataset.filter;
+          renderHistory();
+        });
+      });
+
+      exportBtn.addEventListener('click', () => {
+        // Show format picker
+        const choice = confirm('Export as Markdown? (Cancel for plain text)');
+        exportHistory(choice ? 'markdown' : 'text');
+      });
+
+      moreBtn.addEventListener('click', () => loadHistory(true));
+    }
+
+    // Initialize controls once DOM is ready
+    initHistoryControls();
+
+    // ============================================
+    // MARKDOWN RENDERING (lightweight, no libs)
+    // ============================================
+    function renderMarkdown(text) {
+      // Escape HTML first
+      let html = escapeHtml(text);
+
+      // Code blocks (``` ... ```) — must come first
+      html = html.replace(/```(\w+)?\n([\s\S]*?)```/g, (_, lang, code) => {
+        const langLabel = lang ? `<div class="md-codeblock-header"><span>${escapeHtml(lang)}</span><button class="md-copy-btn" onclick="navigator.clipboard.writeText(this.closest('.bubble').querySelector('.md-codeblock').textContent)">copy</button></div>` : '';
+        return `${langLabel}<pre class="md-codeblock">${highlightSyntax(code, lang)}</pre>`;
+      });
+
+      // Inline code
+      html = html.replace(/`([^`]+)`/g, '<code class="md-code">$1</code>');
+
+      // Bold
+      html = html.replace(/\*\*(.+?)\*\*/g, '<span class="md-bold">$1</span>');
+
+      // Italic
+      html = html.replace(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g, '<em class="md-italic">$1</em>');
+
+      // Links
+      html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a class="md-link" href="$2" target="_blank" rel="noopener">$1</a>');
+
+      // Auto-link bare URLs
+      html = html.replace(/(?<!")https?:\/\/[^\s<]+/g, url => `<a class="md-link" href="${url}" target="_blank" rel="noopener">${url}</a>`);
+
+      // Unordered lists (lines starting with - or *)
+      html = html.replace(/(?:^|\n)((?:[*-] .+\n?)+)/g, (_, list) => {
+        const items = list.trim().split('\n').map(l => `<li>${l.replace(/^[*-] /, '')}</li>`).join('');
+        return `<ul class="md-list">${items}</ul>`;
+      });
+
+      // Ordered lists
+      html = html.replace(/(?:^|\n)((?:\d+\. .+\n?)+)/g, (_, list) => {
+        const items = list.trim().split('\n').map(l => `<li>${l.replace(/^\d+\. /, '')}</li>`).join('');
+        return `<ol class="md-list">${items}</ol>`;
+      });
+
+      return html;
+    }
+
+    // Lightweight syntax highlighting (no external libs)
+    function highlightSyntax(code, lang) {
+      if (!lang) return code;
+      // Keywords for common languages
+      const keywords = 'const|let|var|function|return|if|else|for|while|class|import|export|from|async|await|try|catch|new|this|typeof|switch|case|break|continue|default|throw|yield|null|undefined|true|false|def|print|self|elif|except|finally|None|True|False';
+      let result = code;
+      // Comments (// and #)
+      result = result.replace(/(\/\/.*$|#.*$)/gm, '<span class="syn-comment">$1</span>');
+      // Strings
+      result = result.replace(/(&quot;.*?&quot;|&#x27;.*?&#x27;|'.*?'|".*?")/g, '<span class="syn-string">$1</span>');
+      // Numbers
+      result = result.replace(/\b(\d+\.?\d*)\b/g, '<span class="syn-number">$1</span>');
+      // Keywords
+      result = result.replace(new RegExp(`\\b(${keywords})\\b`, 'g'), '<span class="syn-keyword">$1</span>');
+      // Function calls
+      result = result.replace(/\b([a-zA-Z_]\w*)\s*\(/g, '<span class="syn-function">$1</span>(');
+      return result;
+    }
+
+    // ============================================
+    // MESSAGE REACTIONS
+    // ============================================
+    const REACTION_EMOJIS = ['👍', '❤️', '😂', '🔥', '🎵', '💡'];
+    const messageReactions = {}; // msgId -> Set of emoji
+
+    function toggleReaction(msgId, emoji) {
+      if (!messageReactions[msgId]) messageReactions[msgId] = new Set();
+      if (messageReactions[msgId].has(emoji)) {
+        messageReactions[msgId].delete(emoji);
+      } else {
+        messageReactions[msgId].add(emoji);
+      }
+      updateReactionsUI(msgId);
+    }
+
+    function updateReactionsUI(msgId) {
+      const container = document.getElementById('reactions-' + msgId);
+      if (!container) return;
+      const reactions = messageReactions[msgId] || new Set();
+      container.innerHTML = '';
+      reactions.forEach(emoji => {
+        const btn = document.createElement('button');
+        btn.className = 'reaction-btn active';
+        btn.textContent = emoji;
+        btn.addEventListener('click', (e) => { e.stopPropagation(); toggleReaction(msgId, emoji); });
+        container.appendChild(btn);
+      });
+    }
+
+    function showReactionPicker(msgId) {
+      // Close any existing picker
+      document.querySelectorAll('.reaction-picker.visible').forEach(p => p.classList.remove('visible'));
+      const picker = document.getElementById('picker-' + msgId);
+      if (picker) picker.classList.toggle('visible');
+    }
+
+    // ============================================
+    // REPLY / QUOTE SUPPORT
+    // ============================================
+    let replyingTo = null;
+
+    function setReplyTarget(msgId, role, content) {
+      replyingTo = { msgId, role, content };
+      const preview = document.getElementById('reply-preview');
+      const previewText = document.getElementById('reply-preview-text');
+      const name = role === 'user' ? 'You' : 'Evie';
+      previewText.textContent = name + ': ' + content.substring(0, 80) + (content.length > 80 ? '...' : '');
+      preview.classList.add('visible');
+      document.getElementById('message-input').focus();
+    }
+
+    function clearReply() {
+      replyingTo = null;
+      document.getElementById('reply-preview').classList.remove('visible');
+    }
+
+    document.getElementById('reply-preview-close').addEventListener('click', clearReply);
+
+    // ============================================
+    // IMAGE PASTE SUPPORT
+    // ============================================
+    let pastedImageFile = null;
+
+    document.getElementById('message-input').addEventListener('paste', (e) => {
+      const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+      for (const item of items) {
+        if (item.type.indexOf('image') === 0) {
+          e.preventDefault();
+          pastedImageFile = item.getAsFile();
+          const reader = new FileReader();
+          reader.onload = (ev) => {
+            document.getElementById('paste-preview-img').src = ev.target.result;
+            document.getElementById('paste-preview').classList.add('visible');
+          };
+          reader.readAsDataURL(pastedImageFile);
+          break;
+        }
+      }
+    });
+
+    document.getElementById('paste-preview-close').addEventListener('click', () => {
+      pastedImageFile = null;
+      document.getElementById('paste-preview').classList.remove('visible');
+    });
+
+    // ============================================
+    // SWIPE TO REPLY (mobile)
+    // ============================================
+    let swipeStartX = 0;
+    let swipeTarget = null;
+    const SWIPE_THRESHOLD = 60;
+
+    function initSwipeToReply(msgEl, msgId, role, content) {
+      msgEl.addEventListener('touchstart', (e) => {
+        swipeStartX = e.touches[0].clientX;
+        swipeTarget = msgEl;
+      }, { passive: true });
+
+      msgEl.addEventListener('touchmove', (e) => {
+        if (!swipeTarget || swipeTarget !== msgEl) return;
+        const dx = e.touches[0].clientX - swipeStartX;
+        if (role === 'user' && dx < 0) {
+          msgEl.style.transform = `translateX(${Math.max(dx, -80)}px)`;
+        } else if (role !== 'user' && dx > 0) {
+          msgEl.style.transform = `translateX(${Math.min(dx, 80)}px)`;
+        }
+      }, { passive: true });
+
+      msgEl.addEventListener('touchend', (e) => {
+        if (!swipeTarget || swipeTarget !== msgEl) return;
+        const dx = e.changedTouches[0].clientX - swipeStartX;
+        msgEl.style.transform = '';
+        if (Math.abs(dx) >= SWIPE_THRESHOLD) {
+          setReplyTarget(msgId, role, content);
+        }
+        swipeTarget = null;
+      });
+    }
+
+    // Long-press to quote (works on all devices)
+    function initLongPress(msgEl, msgId, role, content) {
+      let timer = null;
+      msgEl.addEventListener('pointerdown', (e) => {
+        timer = setTimeout(() => {
+          setReplyTarget(msgId, role, content);
+          showReactionPicker(msgId);
+        }, 500);
+      });
+      msgEl.addEventListener('pointerup', () => clearTimeout(timer));
+      msgEl.addEventListener('pointerleave', () => clearTimeout(timer));
+    }
+
+    // ============================================
+    // OFFLINE SUPPORT
+    // ============================================
+    let isOffline = !navigator.onLine;
+    const offlineQueue = JSON.parse(localStorage.getItem('eevee.offlineQueue') || '[]');
+
+    function updateOfflineUI() {
+      const banner = document.getElementById('offline-banner');
+      const queueCount = document.getElementById('offline-queue-count');
+      isOffline = !navigator.onLine;
+      banner.classList.toggle('visible', isOffline);
+      if (offlineQueue.length > 0) {
+        queueCount.style.display = '';
+        queueCount.textContent = offlineQueue.length + ' queued';
+      } else {
+        queueCount.style.display = 'none';
+      }
+    }
+
+    window.addEventListener('online', () => {
+      isOffline = false;
+      updateOfflineUI();
+      flushOfflineQueue();
+    });
+
+    window.addEventListener('offline', () => {
+      isOffline = true;
+      updateOfflineUI();
+    });
+
+    async function flushOfflineQueue() {
+      while (offlineQueue.length > 0 && navigator.onLine) {
+        const msg = offlineQueue.shift();
+        localStorage.setItem('eevee.offlineQueue', JSON.stringify(offlineQueue));
+        try {
+          await sendRequest('chat.send', {
+            sessionKey: 'agent:main:main',
+            message: msg.text,
+            deliver: true,
+            idempotencyKey: generateId()
+          });
+        } catch (e) {
+          // Put it back if send fails
+          offlineQueue.unshift(msg);
+          localStorage.setItem('eevee.offlineQueue', JSON.stringify(offlineQueue));
+          break;
+        }
+      }
+      updateOfflineUI();
+    }
+
+    // ============================================
+    // SETTINGS: THEME PREVIEWS & SCHEDULE
+    // ============================================
+    const THEME_DEFS = {
+      anime: { name: 'Anime', colors: ['#7c3aed', '#06b6d4', '#1e1e2e'] },
+      jrpg: { name: 'Golden Sun', colors: ['#e8a820', '#58d878', '#121638'] },
+      'jrpg-paper': { name: 'Paper: Lined', colors: ['#8b0000', '#5c4033', '#f5ecd8'] },
+      'jrpg-paper-full': { name: 'Paper: Full', colors: ['#8b0000', '#2e7d32', '#f0e6d0'] },
+      'jrpg-paper-bleed': { name: 'Paper: Bleed', colors: ['#8b0000', '#5c4033', '#e8dcc8'] },
+      glaceon: { name: 'Glaceon', colors: ['#7dd3fc', '#38bdf8', '#0a1628'] },
+      leafeon: { name: 'Leafeon', colors: ['#4ade80', '#a3e635', '#0a1a0a'] },
+      espeon: { name: 'Espeon', colors: ['#c084fc', '#f0abfc', '#1a0a2e'] },
+      umbreon: { name: 'Umbreon', colors: ['#fbbf24', '#f59e0b', '#0a0a0a'] },
+    };
+
+    function initSettingsTab() {
+      const grid = document.getElementById('theme-grid');
+      if (!grid) return;
+      const currentTheme = localStorage.getItem('eevee.theme') || 'anime';
+      grid.innerHTML = '';
+      Object.entries(THEME_DEFS).forEach(([key, def]) => {
+        const card = document.createElement('div');
+        card.className = 'theme-preview-card' + (key === currentTheme ? ' active' : '');
+        card.dataset.theme = key;
+        card.style.background = def.colors[2];
+        card.innerHTML = `
+          <div class="theme-preview-colors">
+            ${def.colors.map(c => `<div class="theme-preview-swatch" style="background:${c}"></div>`).join('')}
+          </div>
+          <div class="theme-preview-name" style="color:${def.colors[0]}">${def.name}</div>
+        `;
+        card.addEventListener('click', () => setTheme(key));
+        grid.appendChild(card);
+      });
+
+      // Populate schedule theme selects
+      document.querySelectorAll('.schedule-theme-select').forEach(sel => {
+        sel.innerHTML = '';
+        Object.entries(THEME_DEFS).forEach(([key, def]) => {
+          sel.innerHTML += `<option value="${key}">${def.name}</option>`;
+        });
+      });
+
+      // Load schedule settings
+      const schedEnabled = localStorage.getItem('eevee.themeSchedule.enabled') === 'true';
+      const schedToggle = document.getElementById('theme-schedule-toggle');
+      const schedRows = document.getElementById('theme-schedule-rows');
+      if (schedEnabled) {
+        schedToggle.classList.add('active');
+        schedRows.style.display = '';
+      }
+
+      schedToggle.addEventListener('click', () => {
+        schedToggle.classList.toggle('active');
+        const enabled = schedToggle.classList.contains('active');
+        localStorage.setItem('eevee.themeSchedule.enabled', enabled);
+        schedRows.style.display = enabled ? '' : 'none';
+        if (enabled) applyThemeSchedule();
+      });
+
+      // Load schedule times/themes
+      ['morning', 'evening', 'night'].forEach(period => {
+        const timeEl = document.getElementById('sched-' + period + '-time');
+        const themeEl = document.getElementById('sched-' + period + '-theme');
+        timeEl.value = localStorage.getItem('eevee.sched.' + period + '.time') || timeEl.value;
+        themeEl.value = localStorage.getItem('eevee.sched.' + period + '.theme') || (period === 'night' ? 'umbreon' : period === 'evening' ? 'espeon' : 'anime');
+        timeEl.addEventListener('change', () => {
+          localStorage.setItem('eevee.sched.' + period + '.time', timeEl.value);
+          applyThemeSchedule();
+        });
+        themeEl.addEventListener('change', () => {
+          localStorage.setItem('eevee.sched.' + period + '.theme', themeEl.value);
+          applyThemeSchedule();
+        });
+      });
+
+      // Personality slider
+      const slider = document.getElementById('personality-slider');
+      slider.value = localStorage.getItem('eevee.personality') || 30;
+      slider.addEventListener('input', () => {
+        localStorage.setItem('eevee.personality', slider.value);
+      });
+
+      // Notification toggles
+      ['notif', 'ops-notif'].forEach(id => {
+        const toggle = document.getElementById(id + '-toggle');
+        const key = 'eevee.' + id;
+        if (localStorage.getItem(key) === 'true') toggle.classList.add('active');
+        toggle.addEventListener('click', () => {
+          toggle.classList.toggle('active');
+          localStorage.setItem(key, toggle.classList.contains('active'));
+          if (toggle.classList.contains('active') && 'Notification' in window) {
+            Notification.requestPermission();
+          }
+        });
+      });
+
+      // Export JSON
+      document.getElementById('export-json-btn').addEventListener('click', exportAllAsJSON);
+
+      // Cache status
+      updateCacheStatus();
+      document.getElementById('clear-cache-btn').addEventListener('click', async () => {
+        if ('caches' in window) {
+          const keys = await caches.keys();
+          await Promise.all(keys.map(k => caches.delete(k)));
+        }
+        localStorage.removeItem('eevee.cachedMessages');
+        updateCacheStatus();
+      });
+    }
+
+    function updateCacheStatus() {
+      const el = document.getElementById('cache-status');
+      if (!el) return;
+      const cached = JSON.parse(localStorage.getItem('eevee.cachedMessages') || '[]');
+      el.textContent = cached.length + ' messages cached locally';
+    }
+
+    async function exportAllAsJSON() {
+      if (!currentUser) return;
+      const messagesRef = collection(db, 'conversations', currentUser.uid, 'messages');
+      const q = query(messagesRef, orderBy('timestamp', 'desc'), firestoreLimit(5000));
+      const snapshot = await getDocs(q);
+      const allMsgs = [];
+      snapshot.forEach(docSnap => {
+        const data = docSnap.data();
+        allMsgs.push({
+          id: docSnap.id,
+          role: data.role,
+          content: data.content,
+          type: data.type || 'text',
+          timestamp: data.timestamp?.toDate?.() ? data.timestamp.toDate().toISOString() : null,
+        });
+      });
+      const blob = new Blob([JSON.stringify(allMsgs, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `evie-conversations-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    // Theme schedule checker
+    function applyThemeSchedule() {
+      if (localStorage.getItem('eevee.themeSchedule.enabled') !== 'true') return;
+      const now = new Date();
+      const timeStr = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
+
+      const periods = ['morning', 'evening', 'night'].map(p => ({
+        period: p,
+        time: localStorage.getItem('eevee.sched.' + p + '.time') || (p === 'morning' ? '07:00' : p === 'evening' ? '19:00' : '22:00'),
+        theme: localStorage.getItem('eevee.sched.' + p + '.theme') || 'anime',
+      })).sort((a, b) => a.time.localeCompare(b.time));
+
+      // Find the most recent period that has started
+      let activeTheme = periods[periods.length - 1].theme; // default to last period
+      for (let i = periods.length - 1; i >= 0; i--) {
+        if (timeStr >= periods[i].time) {
+          activeTheme = periods[i].theme;
+          break;
+        }
+      }
+      setTheme(activeTheme);
+    }
+
+    // Check schedule every minute
+    setInterval(() => {
+      if (localStorage.getItem('eevee.themeSchedule.enabled') === 'true') {
+        applyThemeSchedule();
+      }
+    }, 60000);
+
+    // ============================================
+    // OPS TAB ENHANCEMENTS: Polling, Details, Notes
+    // ============================================
+    let opsPollingTimer = null;
+
+    function startOpsPolling() {
+      if (opsPollingTimer) return;
+      opsPollingTimer = setInterval(() => {
+        if (document.getElementById('ops-tab').style.display !== 'none') {
+          loadOps();
+        }
+      }, 30000); // Poll every 30 seconds
+    }
+
+    function stopOpsPolling() {
+      if (opsPollingTimer) {
+        clearInterval(opsPollingTimer);
+        opsPollingTimer = null;
+      }
+    }
+
+    // ============================================
+    // LOCAL MESSAGE CACHE (for offline)
+    // ============================================
+    function cacheMessagesLocally() {
+      const toCache = messages.slice(-100); // cache last 100
+      try {
+        localStorage.setItem('eevee.cachedMessages', JSON.stringify(toCache));
+      } catch (e) {
+        // quota exceeded — ok
+      }
+    }
+
+    function loadCachedMessages() {
+      try {
+        const cached = JSON.parse(localStorage.getItem('eevee.cachedMessages') || '[]');
+        cached.forEach(msg => {
+          messages.push(msg);
+          renderMessage(msg);
+        });
+      } catch (e) {}
     }
 
     let currentUser = null;
@@ -2017,6 +3368,10 @@
     // ============================================
     // INIT
     // ============================================
+    // Apply theme schedule on load
+    applyThemeSchedule();
+    updateOfflineUI();
+
     onAuthStateChanged(auth, async (user) => {
       if (user) {
         currentUser = user;
@@ -2025,14 +3380,27 @@
         appEl.classList.add('visible');
         loadingEl.classList.add('active');
 
+        // Load cached messages for offline support
+        if (!navigator.onLine) {
+          loadCachedMessages();
+          loadingEl.classList.remove('active');
+        }
+
         const configLoaded = await loadConfig(user.uid);
         if (configLoaded) {
           connect();
+          // Flush any queued offline messages
+          if (navigator.onLine && offlineQueue.length > 0) {
+            setTimeout(flushOfflineQueue, 2000);
+          }
         } else {
           loadingEl.textContent = 'No config found. Contact admin to set up /config/' + user.uid;
         }
       } else {
         currentUser = null;
+        historyLoaded = false;
+        historyMessages = [];
+        historyLastDoc = null;
         console.log('❌ Not authenticated');
         appEl.classList.remove('visible');
         loginScreen.classList.add('visible');
