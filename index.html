@@ -1199,18 +1199,60 @@
         console.warn('Brain context injection skipped:', e);
       }
 
-      // Send via OpenClaw chat.send
+      // Send via orchestrator SSE chat endpoint
       try {
-        await sendRequest('chat.send', {
-          sessionKey: 'agent:main:main',
-          message: messageToSend,
-          deliver: true,
-          idempotencyKey: generateId()
+        const chatHistory = messages.slice(-20).map(m => ({
+          role: m.role === 'assistant' ? 'assistant' : 'user',
+          content: m.content,
+        }));
+        if (chatHistory.length > 0 && chatHistory[chatHistory.length - 1].role === 'user') {
+          chatHistory[chatHistory.length - 1].content = messageToSend;
+        }
+
+        const chatRes = await fetch(OPS_API + '/chat', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-simonoto-key': OPS_API_KEY,
+          },
+          body: JSON.stringify({ messages: chatHistory }),
         });
-        console.log('📤 Message sent!');
-      } catch (err) {
-        console.error('❌ Send failed:', err);
+
+        if (!chatRes.ok) throw new Error(`Chat API error: ${chatRes.status}`);
+
         hideThinkingIndicator();
+        renderStreamingMessage();
+
+        const reader = chatRes.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop();
+
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
+            const payload = line.slice(6).trim();
+            if (payload === '[DONE]') continue;
+            try {
+              const chunk = JSON.parse(payload);
+              if (chunk.content && currentStreamingMessage) {
+                currentStreamingMessage.content += chunk.content;
+                updateStreamingContent();
+              }
+            } catch { /* skip unparseable */ }
+          }
+        }
+
+        finalizeStreamingMessage();
+      } catch (err) {
+        console.error('Send failed:', err);
+        hideThinkingIndicator();
+        if (currentStreamingMessage) finalizeStreamingMessage();
         addMessage('assistant', `Error: ${err.message}`, 'text');
       }
     }
@@ -1534,6 +1576,7 @@
     // TABS
     // ============================================
     const OPS_API = 'https://bones.professoroffunk.com';
+    const OPS_API_KEY = 'sk-simonoto-b9ba537ddfd473d3d342918c997190468d47d64a0b0469d6b3e9f8dd848dbae8';
 
     document.querySelectorAll('.nav-tab').forEach(tab => {
       tab.addEventListener('click', () => {
@@ -1553,8 +1596,8 @@
       try {
         const res = await fetch(OPS_API + path, {
           method: options.method || 'GET',
-          headers: { 'Content-Type': 'application/json' },
-          body: options.body ? JSON.stringify(options.body) : undefined,
+          headers: { 'Content-Type': 'application/json', 'x-simonoto-key': OPS_API_KEY },
+          body: options.body ? (typeof options.body === 'string' ? options.body : JSON.stringify(options.body)) : undefined,
         });
         return await res.json();
       } catch (err) {
@@ -2066,7 +2109,7 @@
           });
         }
 
-        container.appendChild(card);
+        section.appendChild(card);
       });
 
       return section;
@@ -3388,7 +3431,10 @@
 
         const configLoaded = await loadConfig(user.uid);
         if (configLoaded) {
-          connect();
+          // Chat goes through orchestrator SSE (/chat endpoint), no WebSocket needed
+          wsAuthenticated = true;
+          updateStatus(true);
+          loadingEl.classList.remove('active');
           // Flush any queued offline messages
           if (navigator.onLine && offlineQueue.length > 0) {
             setTimeout(flushOfflineQueue, 2000);
