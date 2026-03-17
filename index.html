@@ -2066,30 +2066,37 @@
       const section = document.createElement('div');
       section.className = 'ops-section';
 
-      const items = Array.isArray(proposals) ? proposals : [];
-      section.innerHTML = `<div class="ops-section-title">Proposals (${items.length} pending)</div>`;
+      const all = Array.isArray(proposals) ? proposals : [];
+      const active = all.filter(p => ['pending', 'greenlit', 'executing', 'needs-revision', 'decomposing'].includes(p.status));
+      const recentShipped = all.filter(p => p.status === 'shipped').slice(0, 5);
 
-      if (items.length === 0) {
-        section.innerHTML += '<div class="ops-empty">No pending proposals</div>';
+      section.innerHTML = `<div class="ops-section-title">Proposals (${active.length} active)</div>`;
+
+      if (active.length === 0 && recentShipped.length === 0) {
+        section.innerHTML += '<div class="ops-empty">No active proposals</div>';
         return section;
       }
 
+      // Show active proposals
+      const items = active.length > 0 ? active : recentShipped;
+      if (active.length === 0 && recentShipped.length > 0) {
+        section.innerHTML += '<div class="ops-empty" style="margin-bottom:8px">No active proposals — showing recent ships:</div>';
+      }
+
       items.forEach(p => {
+        const statusBadge = p.status === 'executing' ? '🔄' : p.status === 'greenlit' ? '🟢' : p.status === 'shipped' ? '✅' : p.status === 'pending' ? '🟡' : '⏳';
         const card = document.createElement('div');
         card.className = 'ops-proposal';
+        const showActions = ['pending', 'needs-revision'].includes(p.status);
         card.innerHTML = `
-          <div class="ops-proposal-title">${escapeHtml(p.title)}</div>
-          <div class="ops-proposal-meta">${escapeHtml(p.domain)} · ${escapeHtml(p.effort || 'unknown')} · ${escapeHtml(p.recommendation || '')}</div>
+          <div class="ops-proposal-title">${statusBadge} ${escapeHtml(p.title)}</div>
+          <div class="ops-proposal-meta">${escapeHtml(p.domain)} · ${escapeHtml(p.effort || 'unknown')} · ${escapeHtml(p.status)}</div>
           <button class="ops-btn expand" data-id="${p.id}">Show details</button>
           <div class="ops-proposal-body" id="ops-body-${p.id}">${escapeHtml(p.body)}</div>
-          <div class="ops-proposal-actions">
+          ${showActions ? `<div class="ops-proposal-actions">
             <button class="ops-btn approve" data-id="${p.id}">Approve</button>
             <button class="ops-btn reject" data-id="${p.id}">Reject</button>
-          </div>
-          <div class="proposal-note-input">
-            <input type="text" placeholder="Add a note..." data-note-id="${p.id}">
-            <button class="ops-btn" data-note-submit="${p.id}">Note</button>
-          </div>
+          </div>` : ''}
         `;
 
         card.querySelector('.ops-btn.expand').addEventListener('click', (e) => {
@@ -2098,7 +2105,7 @@
           e.target.textContent = body.classList.contains('expanded') ? 'Hide details' : 'Show details';
         });
 
-        card.querySelector('.ops-btn.approve').addEventListener('click', async () => {
+        card.querySelector('.ops-btn.approve')?.addEventListener('click', async () => {
           await opsApi('/proposals/' + p.id + '/resolve', {
             method: 'POST',
             body: { status: 'greenlit' },
@@ -2113,22 +2120,6 @@
           });
           loadOps();
         });
-
-        // Wire note submit
-        const noteBtn = card.querySelector('[data-note-submit]');
-        if (noteBtn) {
-          noteBtn.addEventListener('click', async (e) => {
-            e.stopPropagation();
-            const noteInput = card.querySelector('[data-note-id]');
-            const noteText = noteInput?.value?.trim();
-            if (!noteText) return;
-            await opsApi('/proposals/' + noteBtn.dataset.noteSubmit + '/notes', {
-              method: 'POST',
-              body: { note: noteText },
-            });
-            noteInput.value = '';
-          });
-        }
 
         section.appendChild(card);
       });
