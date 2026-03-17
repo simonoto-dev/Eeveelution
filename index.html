@@ -1221,6 +1221,14 @@
         if (!chatRes.ok) throw new Error(`Chat API error: ${chatRes.status}`);
 
         hideThinkingIndicator();
+        currentStreamingMessage = {
+          id: Date.now().toString(),
+          role: 'assistant',
+          content: '',
+          type: 'text',
+          timestamp: Date.now(),
+          element: null,
+        };
         renderStreamingMessage();
 
         const reader = chatRes.body.getReader();
@@ -1248,6 +1256,19 @@
           }
         }
 
+        // Persist to messages array + Firestore before finalize clears it
+        if (currentStreamingMessage && currentStreamingMessage.content) {
+          const finalMsg = {
+            id: currentStreamingMessage.id,
+            role: 'assistant',
+            content: currentStreamingMessage.content,
+            type: 'text',
+            timestamp: currentStreamingMessage.timestamp,
+          };
+          messages.push(finalMsg);
+          persistMessage(finalMsg);
+          cacheMessagesLocally();
+        }
         finalizeStreamingMessage();
       } catch (err) {
         console.error('Send failed:', err);
