@@ -298,10 +298,16 @@
     // ============================================
     // CONFIGURATION (loaded from Firestore after auth)
     // ============================================
+    const CONFIG = { opsApiKey: '', brainApiKey: '' };
+
     async function loadConfig(uid) {
       try {
         const snap = await getDoc(doc(db, 'config', uid));
-        return snap.exists();
+        if (!snap.exists()) return false;
+        const data = snap.data();
+        CONFIG.opsApiKey = data.opsApiKey || '';
+        CONFIG.brainApiKey = data.brainApiKey || '';
+        return true;
       } catch (err) {
         console.error('Failed to load config:', err);
         return false;
@@ -725,7 +731,7 @@
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'x-simonoto-key': OPS_API_KEY,
+            'x-simonoto-key': CONFIG.opsApiKey,
           },
           body: JSON.stringify({ messages: chatHistory }),
         });
@@ -939,7 +945,6 @@
     // OPEN BRAIN INTEGRATION (capture + retrieval)
     // ============================================
     const BRAIN_API_URL = 'https://brain.professoroffunk.com';
-    const BRAIN_API_KEY = '70ff2e65c0ba3cd48bfb5b77290719c955be294e30192ea042f0594f234fe262';
 
     async function storeToBrain(content, source = 'evie', tags = []) {
       try {
@@ -947,7 +952,7 @@
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'x-brain-key': BRAIN_API_KEY
+            'x-brain-key': CONFIG.brainApiKey
           },
           body: JSON.stringify({ content, source, tags, importance: 0.6 })
         });
@@ -986,7 +991,7 @@
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'x-brain-key': BRAIN_API_KEY
+            'x-brain-key': CONFIG.brainApiKey
           },
           body: JSON.stringify({ query, limit }),
           signal: controller.signal
@@ -1109,7 +1114,6 @@
     // TABS
     // ============================================
     const OPS_API = 'https://bones.professoroffunk.com';
-    const OPS_API_KEY = 'sk-simonoto-b9ba537ddfd473d3d342918c997190468d47d64a0b0469d6b3e9f8dd848dbae8';
 
     document.querySelectorAll('.nav-tab').forEach(tab => {
       tab.addEventListener('click', () => {
@@ -1129,7 +1133,7 @@
       try {
         const res = await fetch(OPS_API + path, {
           method: options.method || 'GET',
-          headers: { 'Content-Type': 'application/json', 'x-simonoto-key': OPS_API_KEY },
+          headers: { 'Content-Type': 'application/json', 'x-simonoto-key': CONFIG.opsApiKey },
           body: options.body ? (typeof options.body === 'string' ? options.body : JSON.stringify(options.body)) : undefined,
         });
         return await res.json();
@@ -1787,7 +1791,7 @@
     async function fetchBrainStats() {
       try {
         const resp = await fetch(BRAIN_API_URL + '/stats', {
-          headers: { 'x-brain-key': BRAIN_API_KEY }
+          headers: { 'x-brain-key': CONFIG.brainApiKey }
         });
         if (!resp.ok) return null;
         return await resp.json();
@@ -1860,7 +1864,15 @@
           btn.textContent = '...';
           results.innerHTML = '';
 
-          const memories = await searchBrain(query, 5);
+          let memories;
+          try {
+            memories = await searchBrain(query, 5);
+          } catch (e) {
+            btn.disabled = false;
+            btn.textContent = 'Search';
+            results.innerHTML = '<div class="ops-empty" style="padding:12px">Search failed</div>';
+            return;
+          }
           btn.disabled = false;
           btn.textContent = 'Search';
 
@@ -2380,7 +2392,7 @@
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'x-simonoto-key': OPS_API_KEY,
+              'x-simonoto-key': CONFIG.opsApiKey,
             },
             body: JSON.stringify({
               messages: [{ role: 'user', content: msg.text }],
