@@ -3,7 +3,7 @@
 // Offline-first PWA caching strategy
 // ============================================
 
-const CACHE_NAME = 'familiar-v2026-03-17c';
+const CACHE_NAME = 'familiar-v2026-03-17d';
 const STATIC_ASSETS = [
   '/',
   '/index.html',

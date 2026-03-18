@@ -32,28 +32,6 @@
     </div>
   </div>
 
-  <!-- Pairing Screen -->
-  <div id="pairing-screen">
-    <div style="text-align: center; max-width: 500px;">
-      <img src="bones-3.png" alt="Evie" style="width: 100px; height: 100px; border-radius: 50%; margin-bottom: 20px; object-fit: cover; opacity: 0.7;">
-      <h2 style="color: var(--text); font-size: 22px; margin-bottom: 8px;">Device Pairing Required</h2>
-      <p style="color: var(--text-muted); margin-bottom: 24px;">This device needs to be approved before it can connect.</p>
-
-      <div style="background: var(--bg-input); border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-bottom: 16px; text-align: left;">
-        <p style="color: var(--text-muted); font-size: 13px; margin: 0 0 8px 0;">1. SSH to your Pi and run:</p>
-        <pre style="background: var(--bg-dark); border-radius: 8px; padding: 12px; color: var(--accent-secondary); font-size: 13px; overflow-x: auto; margin: 0 0 12px 0;">openclaw gateway call device.pair.list</pre>
-        <p style="color: var(--text-muted); font-size: 13px; margin: 0 0 8px 0;">2. Find your device and approve it:</p>
-        <pre style="background: var(--bg-dark); border-radius: 8px; padding: 12px; color: var(--accent-secondary); font-size: 13px; overflow-x: auto; margin: 0;">openclaw gateway call device.pair.approve --params '{"requestId":"..."}'</pre>
-      </div>
-
-      <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 16px;">Device ID: <code id="pairing-device-id" style="color: var(--accent); font-size: 12px;">loading...</code></p>
-
-      <button id="pairing-retry-btn" style="padding: 12px 32px; background: var(--accent); border: none; border-radius: 10px; color: white; font-family: 'Quicksand', sans-serif; font-size: 15px; font-weight: 600; cursor: pointer;">
-        Retry Connection
-      </button>
-    </div>
-  </div>
-
   <!-- App (hidden until authenticated) -->
   <div id="app">
     <header>
@@ -320,23 +298,10 @@
     // ============================================
     // CONFIGURATION (loaded from Firestore after auth)
     // ============================================
-    const CONFIG = {
-      wsUrl: '',
-      gatewayToken: '',
-      chatId: ''
-    };
-
     async function loadConfig(uid) {
       try {
         const snap = await getDoc(doc(db, 'config', uid));
-        if (snap.exists()) {
-          const data = snap.data();
-          CONFIG.wsUrl = data.wsUrl || '';
-          CONFIG.gatewayToken = data.gatewayToken || '';
-          CONFIG.chatId = data.chatId || '';
-          return true;
-        }
-        return false;
+        return snap.exists();
       } catch (err) {
         console.error('Failed to load config:', err);
         return false;
@@ -344,106 +309,9 @@
     }
 
     // ============================================
-    // DEVICE IDENTITY (Ed25519 crypto pairing)
-    // ============================================
-    const DEVICE_IDENTITY_KEY = 'openclaw.device.auth.v1';
-    const DEVICE_TOKENS_KEY = 'openclaw.device.tokens.v1';
-
-    function bytesToHex(bytes) {
-      return Array.from(new Uint8Array(bytes))
-        .map(b => b.toString(16).padStart(2, '0'))
-        .join('');
-    }
-
-    function bytesToBase64Url(bytes) {
-      const arr = new Uint8Array(bytes);
-      let binary = '';
-      for (const b of arr) binary += String.fromCharCode(b);
-      return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-    }
-
-    async function generateDeviceIdentity() {
-      const keyPair = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
-      const publicKeyRaw = await crypto.subtle.exportKey('raw', keyPair.publicKey);
-      const privateKeyJwk = await crypto.subtle.exportKey('jwk', keyPair.privateKey);
-
-      // deviceId = SHA-256(publicKeyRaw) as hex (matches gateway's deriveDeviceIdFromPublicKey)
-      const hashBuffer = await crypto.subtle.digest('SHA-256', publicKeyRaw);
-      const deviceId = bytesToHex(hashBuffer);
-
-      return {
-        deviceId,
-        publicKey: bytesToBase64Url(publicKeyRaw),
-        privateKeyJwk
-      };
-    }
-
-    async function getOrCreateDeviceIdentity() {
-      try {
-        const stored = localStorage.getItem(DEVICE_IDENTITY_KEY);
-        if (stored) {
-          const parsed = JSON.parse(stored);
-          if (parsed.version === 1 && parsed.deviceId && parsed.publicKey && parsed.privateKeyJwk) {
-            return parsed;
-          }
-        }
-      } catch {}
-
-      const identity = await generateDeviceIdentity();
-      const record = {
-        version: 1,
-        ...identity,
-        createdAtMs: Date.now()
-      };
-      localStorage.setItem(DEVICE_IDENTITY_KEY, JSON.stringify(record));
-      return record;
-    }
-
-    async function signMessage(privateKeyJwk, message) {
-      const key = await crypto.subtle.importKey('jwk', privateKeyJwk, { name: 'Ed25519' }, false, ['sign']);
-      const encoded = new TextEncoder().encode(message);
-      const signature = await crypto.subtle.sign({ name: 'Ed25519' }, key, encoded);
-      return bytesToBase64Url(signature);
-    }
-
-    function storeDeviceToken(deviceId, role, token, scopes) {
-      let existingTokens = {};
-      try {
-        const item = localStorage.getItem(DEVICE_TOKENS_KEY);
-        if (item) {
-          const parsed = JSON.parse(item);
-          if (parsed.deviceId === deviceId) existingTokens = parsed.tokens || {};
-        }
-      } catch {}
-      const record = {
-        version: 1,
-        deviceId,
-        tokens: {
-          ...existingTokens,
-          [role]: { token, role, scopes, updatedAtMs: Date.now() }
-        }
-      };
-      localStorage.setItem(DEVICE_TOKENS_KEY, JSON.stringify(record));
-    }
-
-    function getStoredToken(deviceId, role) {
-      try {
-        const item = localStorage.getItem(DEVICE_TOKENS_KEY);
-        if (!item) return null;
-        const stored = JSON.parse(item);
-        if (stored.deviceId !== deviceId) return null;
-        return stored.tokens[role]?.token || null;
-      } catch {
-        return null;
-      }
-    }
-
-    // ============================================
     // STATE
     // ============================================
-    let ws = null;
-    let reconnectAttempts = 0;
-    const maxReconnectAttempts = 10;
+    let chatReady = false;
     const messages = [];
     let isRecordingVoice = false;
 
@@ -458,223 +326,12 @@
     const loadingEl = document.getElementById('loading');
 
     // ============================================
-    // WEBSOCKET
+    // CONNECTION STATUS
     // ============================================
-    let wsAuthenticated = false;
-    let pendingRequests = new Map();
-
-    function connect() {
-      const url = CONFIG.wsUrl;
-      ws = new WebSocket(url);
-      wsAuthenticated = false;
-
-      ws.onopen = () => {
-        console.log('⚡ WebSocket opened, waiting for challenge...');
-      };
-
-      ws.onmessage = async (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          
-          // Handle challenge from gateway
-          if (data.type === 'event' && data.event === 'connect.challenge') {
-            console.log('📋 Received challenge, sending connect...');
-            const nonce = data.payload?.nonce || '';
-            await sendConnectRequest(nonce);
-            return;
-          }
-          
-          // Handle connect response
-          if (data.type === 'res' && !wsAuthenticated) {
-            if (data.ok) {
-              console.log('✅ Authenticated!');
-              wsAuthenticated = true;
-
-              // Store device token if gateway provides one
-              if (data.payload?.auth?.deviceToken) {
-                try {
-                  const identity = await getOrCreateDeviceIdentity();
-                  storeDeviceToken(
-                    identity.deviceId,
-                    data.payload.auth.role || 'operator',
-                    data.payload.auth.deviceToken,
-                    data.payload.auth.scopes || []
-                  );
-                  console.log('💾 Device token stored');
-                } catch (e) {
-                  console.warn('Failed to store device token:', e);
-                }
-              }
-
-              // Hide pairing screen if it was showing
-              document.getElementById('pairing-screen').classList.remove('visible');
-              updateStatus(true);
-              loadingEl.classList.remove('active');
-            } else {
-              // Check if error indicates pairing or identity issue
-              const errCode = data.error?.code || '';
-              const errMsg = data.error?.message || '';
-              const errCause = data.error?.cause || '';
-              const needsPairing = errCode === 'UNAUTHORIZED' || errCode === 'INVALID_REQUEST'
-                || errCause === 'device-auth-invalid'
-                || errMsg.toLowerCase().includes('pair')
-                || errMsg.toLowerCase().includes('mismatch')
-                || errMsg.toLowerCase().includes('identity');
-              if (needsPairing) {
-                console.log('🔑 Device pairing required, clearing stale token');
-                // Clear token only - keep keypair so device identity is stable across re-pairs
-                localStorage.removeItem(DEVICE_TOKENS_KEY);
-                reconnectAttempts = maxReconnectAttempts; // prevent auto-reconnect
-                showPairingScreen();
-                ws.close();
-              } else {
-                console.error('❌ Auth failed:', data.error);
-                ws.close();
-              }
-            }
-            return;
-          }
-          
-          // Handle request responses
-          if (data.type === 'res' && data.id) {
-            const handler = pendingRequests.get(data.id);
-            if (handler) {
-              pendingRequests.delete(data.id);
-              if (data.ok) {
-                handler.resolve(data.payload);
-              } else {
-                handler.reject(new Error(data.error?.message || 'Request failed'));
-              }
-            }
-            return;
-          }
-          
-          // Handle regular messages
-          handleMessage(data);
-        } catch (e) {
-          console.error('Message parse error:', e);
-          handleStreamChunk(event.data);
-        }
-      };
-
-      ws.onclose = (event) => {
-        wsAuthenticated = false;
-        updateStatus(false);
-        // Gateway closes with 1008 + reason for device auth failures
-        if (event.reason && (event.reason.includes('mismatch') || event.reason.includes('device'))) {
-          console.log('🔑 Device auth rejected:', event.reason);
-          // Clear token only - keep keypair so device identity is stable
-          localStorage.removeItem(DEVICE_TOKENS_KEY);
-          reconnectAttempts = maxReconnectAttempts; // stop auto-reconnect
-          showPairingScreen();
-          return;
-        }
-        attemptReconnect();
-      };
-
-      ws.onerror = (err) => {
-        console.error('WebSocket error:', err);
-      };
-    }
-
-    async function sendConnectRequest(nonce = '') {
-      try {
-        const identity = await getOrCreateDeviceIdentity();
-        const role = 'operator';
-        const scopes = ['operator.admin', 'operator.read', 'operator.write', 'operator.approvals', 'operator.pairing'];
-        const storedToken = getStoredToken(identity.deviceId, role);
-
-        // Update pairing screen device ID display
-        const deviceIdEl = document.getElementById('pairing-device-id');
-        if (deviceIdEl) deviceIdEl.textContent = identity.deviceId;
-
-        // Use stored device token if available, otherwise gateway token for both
-        // signature and auth.token — they must match for gateway verification
-        const authToken = storedToken || CONFIG.gatewayToken || '';
-        const signedAtMs = Date.now();
-        const version = nonce ? 'v2' : 'v1';
-        const parts = [
-          version,
-          identity.deviceId,
-          'webchat',
-          'ui',
-          role,
-          scopes.join(','),
-          String(signedAtMs),
-          authToken
-        ];
-        if (version === 'v2') parts.push(nonce);
-        const message = parts.join('|');
-
-        const signature = await signMessage(identity.privateKeyJwk, message);
-        const connectMsg = {
-          type: 'req',
-          id: generateId(),
-          method: 'connect',
-          params: {
-            minProtocol: 3,
-            maxProtocol: 3,
-            client: {
-              id: 'webchat',
-              version: '1.0.0',
-              platform: 'web',
-              mode: 'ui'
-            },
-            role: role,
-            scopes: scopes,
-            device: {
-              id: identity.deviceId,
-              publicKey: identity.publicKey,
-              signature: signature,
-              signedAt: signedAtMs,
-              nonce: nonce || undefined
-            },
-            auth: authToken ? { token: authToken } : undefined,
-            locale: navigator.language || 'en-US',
-            userAgent: navigator.userAgent
-          }
-        };
-
-        console.log('📡 Connect msg:', JSON.stringify(connectMsg, null, 2));
-        ws.send(JSON.stringify(connectMsg));
-      } catch (err) {
-        console.error('Failed to build connect request:', err);
-      }
-    }
-
     function generateId() {
       return Array.from(crypto.getRandomValues(new Uint8Array(8)))
         .map(b => b.toString(16).padStart(2, '0'))
         .join('');
-    }
-
-    function sendRequest(method, params) {
-      return new Promise((resolve, reject) => {
-        if (!ws || ws.readyState !== WebSocket.OPEN || !wsAuthenticated) {
-          reject(new Error('Not connected'));
-          return;
-        }
-
-        const id = generateId();
-        pendingRequests.set(id, { resolve, reject });
-
-        const msg = {
-          type: 'req',
-          id,
-          method,
-          params
-        };
-
-        ws.send(JSON.stringify(msg));
-
-        // Timeout after 30 seconds
-        setTimeout(() => {
-          if (pendingRequests.has(id)) {
-            pendingRequests.delete(id);
-            reject(new Error('Request timeout'));
-          }
-        }, 30000);
-      });
     }
 
     function updateStatus(connected) {
@@ -682,20 +339,10 @@
         statusEl.classList.remove('disconnected');
         statusEl.classList.add('connected');
         statusTextEl.textContent = 'Online';
-        reconnectAttempts = 0;
       } else {
         statusEl.classList.remove('connected');
         statusEl.classList.add('disconnected');
-        statusTextEl.textContent = 'Reconnecting...';
-      }
-    }
-
-    function attemptReconnect() {
-      if (reconnectAttempts < maxReconnectAttempts) {
-        reconnectAttempts++;
-        const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000);
-        console.log(`Reconnecting in ${delay/1000}s... (${reconnectAttempts}/${maxReconnectAttempts})`);
-        setTimeout(connect, delay);
+        statusTextEl.textContent = 'Offline';
       }
     }
 
@@ -703,142 +350,6 @@
     // MESSAGE HANDLING
     // ============================================
     let currentStreamingMessage = null;
-
-    function handleMessage(data) {
-      console.log('📨 Message:', data);
-
-      // Handle chat events from OpenClaw
-      if (data.type === 'event' && data.event === 'chat') {
-        const chatData = data.payload;
-
-        if (chatData.state === 'delta') {
-          // Streaming response - hide thinking indicator
-          hideThinkingIndicator();
-          const content = extractContent(chatData.message);
-          if (content && !currentStreamingMessage) {
-            currentStreamingMessage = {
-              role: 'assistant',
-              content: '',
-              type: 'text',
-              element: null
-            };
-            renderStreamingMessage();
-          }
-          if (content) {
-            currentStreamingMessage.content = content;
-            updateStreamingContent();
-          }
-        } else if (chatData.state === 'final' || chatData.state === 'aborted') {
-          hideThinkingIndicator();
-          // If final has message content but no streaming message was started, show it directly
-          const content = extractContent(chatData.message);
-          if (content && !currentStreamingMessage) {
-            addMessage('assistant', content, 'text');
-          } else {
-            // Update content from final if available
-            if (content && currentStreamingMessage) {
-              currentStreamingMessage.content = content;
-              updateStreamingContent();
-            }
-            finalizeStreamingMessage();
-          }
-        } else if (chatData.state === 'error') {
-          const errMsg = chatData.errorMessage || 'Unknown error';
-          console.error('🔴 Chat error:', errMsg);
-          // Don't show billing/failover errors - gateway will retry with fallback model
-          if (errMsg.includes('billing') || errMsg.includes('credits') || errMsg.includes('balance')) {
-            console.log('⏳ Provider failover in progress...');
-            return;
-          }
-          hideThinkingIndicator();
-          finalizeStreamingMessage();
-          addMessage('assistant', `Error: ${errMsg}`, 'text');
-        }
-        return;
-      }
-
-      // Handle agent streaming events (real-time, not throttled like chat deltas)
-      if (data.type === 'event' && data.event === 'agent') {
-        const agentData = data.payload;
-
-        if (agentData.stream === 'assistant' && agentData.data?.text) {
-          hideThinkingIndicator();
-          if (!currentStreamingMessage) {
-            currentStreamingMessage = {
-              role: 'assistant',
-              content: '',
-              type: 'text',
-              element: null
-            };
-            renderStreamingMessage();
-          }
-          currentStreamingMessage.content = agentData.data.text;
-          updateStreamingContent();
-        } else if (agentData.stream === 'lifecycle') {
-          if (agentData.data?.phase === 'start') {
-            showThinkingIndicator();
-          } else if (agentData.data?.phase === 'error') {
-            hideThinkingIndicator();
-            finalizeStreamingMessage();
-            addMessage('assistant', `Error: ${agentData.data.error || 'Agent error'}`, 'text');
-          }
-        }
-        return;
-      }
-
-      // Handle other message formats (legacy)
-      const content = data.content || data.text || data.message || '';
-      const role = data.role || (data.author === 'user' ? 'user' : 'assistant');
-      
-      if (content) {
-        if (currentStreamingMessage) {
-          finalizeStreamingMessage();
-        }
-        
-        if (data.type === 'voice' || data.voice) {
-          addMessage(role, content, 'voice');
-        } else if (data.type === 'image' || data.image) {
-          addMessage(role, content, 'image', data.imageUrl);
-        } else {
-          addMessage(role, content, 'text');
-        }
-      }
-    }
-
-    function extractContent(message) {
-      if (!message) return '';
-      if (typeof message === 'string') return message;
-      if (message.content) {
-        if (typeof message.content === 'string') return message.content;
-        if (Array.isArray(message.content)) {
-          return message.content
-            .filter(c => c.type === 'text')
-            .map(c => c.text)
-            .join('');
-        }
-      }
-      return '';
-    }
-
-    function handleStreamChunk(data) {
-      // Handle streaming response (typewriter effect)
-      if (typeof data === 'string') {
-        // Start streaming message if not already
-        if (!currentStreamingMessage) {
-          currentStreamingMessage = {
-            role: 'assistant',
-            content: '',
-            type: 'text',
-            element: null
-          };
-          renderStreamingMessage();
-        }
-        
-        // Append content
-        currentStreamingMessage.content += data;
-        updateStreamingContent();
-      }
-    }
 
     // ============================================
     // EMOTE SYSTEM
@@ -1111,19 +622,20 @@
     async function sendMessage(text) {
       if (!text.trim() && !pastedImageFile) return;
 
-      // Handle pasted image
+      // Handle pasted image — show locally, send text if any
       if (pastedImageFile) {
         const file = pastedImageFile;
         pastedImageFile = null;
         document.getElementById('paste-preview').classList.remove('visible');
-        // For now, upload to Firebase Storage if available, or show locally
         const reader = new FileReader();
         reader.onload = (ev) => {
           addMessage('user', text || '[Image]', 'image', ev.target.result);
         };
         reader.readAsDataURL(file);
         inputEl.value = '';
-        return;
+        // Image-only messages stay local (chat API is text-only)
+        if (!text.trim()) return;
+        // If text was included, fall through to send it as a regular message
       }
 
       // Build reply reference
@@ -1147,7 +659,7 @@
       inputEl.value = '';
 
       // If offline, queue and return
-      if (isOffline || !wsAuthenticated) {
+      if (isOffline || !chatReady) {
         offlineQueue.push({ text, timestamp: Date.now() });
         localStorage.setItem('eevee.offlineQueue', JSON.stringify(offlineQueue));
         updateOfflineUI();
@@ -2863,14 +2375,25 @@
         const msg = offlineQueue.shift();
         localStorage.setItem('eevee.offlineQueue', JSON.stringify(offlineQueue));
         try {
-          await sendRequest('chat.send', {
-            sessionKey: 'agent:main:main',
-            message: msg.text,
-            deliver: true,
-            idempotencyKey: generateId()
+          // Re-send queued message through the SSE chat endpoint
+          const chatRes = await fetch(OPS_API + '/chat', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-simonoto-key': OPS_API_KEY,
+            },
+            body: JSON.stringify({
+              messages: [{ role: 'user', content: msg.text }],
+            }),
           });
+          if (!chatRes.ok) throw new Error(`Chat API error: ${chatRes.status}`);
+          // Consume and discard the SSE stream (queued messages are fire-and-forget)
+          const reader = chatRes.body.getReader();
+          while (true) {
+            const { done } = await reader.read();
+            if (done) break;
+          }
         } catch (e) {
-          // Put it back if send fails
           offlineQueue.unshift(msg);
           localStorage.setItem('eevee.offlineQueue', JSON.stringify(offlineQueue));
           break;
@@ -3101,7 +2624,8 @@
     let currentUser = null;
 
     signoutBtn.addEventListener('click', async () => {
-      if (ws) ws.close();
+      chatReady = false;
+      updateStatus(false);
       await signOut(auth);
     });
 
@@ -3116,31 +2640,9 @@
     });
 
     // ============================================
-    // PAIRING UI
-    // ============================================
-    const pairingScreen = document.getElementById('pairing-screen');
-    const pairingRetryBtn = document.getElementById('pairing-retry-btn');
-
-    function showPairingScreen() {
-      loadingEl.classList.remove('active');
-      pairingScreen.classList.add('visible');
-    }
-
-    pairingRetryBtn.addEventListener('click', () => {
-      pairingScreen.classList.remove('visible');
-      loadingEl.classList.add('active');
-      if (ws) {
-        ws.onclose = null; // prevent old close handler from triggering reconnect
-        ws.close();
-      }
-      reconnectAttempts = 0;
-      connect();
-    });
-
-    // ============================================
     // TERMINAL
     // ============================================
-    const TERM_WS_URL = 'wss://evie.professoroffunk.com';
+    const TERM_WS_URL = 'wss://eevee.professoroffunk.com/ws';
     let term = null;
     let termWs = null;
     let termInitialized = false;
@@ -3346,7 +2848,7 @@
 
         termWs.onopen = async () => {
           console.log('Terminal WS connected');
-          // Send Firebase auth token
+          if (!currentUser) { termWs.close(); return; }
           const token = await currentUser.getIdToken();
           termWs.send(JSON.stringify({ type: 'auth', token }));
         };
@@ -3444,7 +2946,7 @@
         const configLoaded = await loadConfig(user.uid);
         if (configLoaded) {
           // Chat goes through orchestrator SSE (/chat endpoint), no WebSocket needed
-          wsAuthenticated = true;
+          chatReady = true;
           updateStatus(true);
           loadingEl.classList.remove('active');
           // Flush any queued offline messages
@@ -3456,16 +2958,14 @@
         }
       } else {
         currentUser = null;
+        chatReady = false;
         historyLoaded = false;
         historyMessages = [];
         historyLastDoc = null;
         console.log('❌ Not authenticated');
         appEl.classList.remove('visible');
         loginScreen.classList.add('visible');
-        if (ws) {
-          ws.close();
-          ws = null;
-        }
+        updateStatus(false);
       }
     });
   </script>
