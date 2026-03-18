@@ -281,6 +281,7 @@
     import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
     import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
     import { getFirestore, doc, getDoc, collection, addDoc, query, where, orderBy, limit as firestoreLimit, getDocs, Timestamp, startAfter } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+    import { getStorage, ref, uploadBytes, getDownloadURL } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js';
 
     const firebaseConfig = {
       apiKey: "AIzaSyCntodkV9WMDQOPaSUWH-VuURXWFj38erM",
@@ -292,8 +293,18 @@
     };
 
     const app = initializeApp(firebaseConfig);
+    const storage = getStorage(app);
     const auth = getAuth(app);
     const db = getFirestore(app);
+
+    async function uploadChatImage(file) {
+      const user = getAuth().currentUser;
+      if (!user) throw new Error('Not authenticated');
+      const filename = `${Date.now()}_${file.name || 'image.jpg'}`;
+      const storageRef = ref(storage, `chat-images/${user.uid}/${filename}`);
+      await uploadBytes(storageRef, file);
+      return getDownloadURL(storageRef);
+    }
 
     // ============================================
     // CONFIGURATION (loaded from Firestore after auth)
@@ -625,23 +636,102 @@
       }
     }
 
+    async function sendImageToChat(imageUrl, text) {
+      if (!chatReady) return;
+      showThinkingIndicator();
+
+      const chatHistory = messages.slice(-20).map(m => {
+        if (m.type === 'image' && m.imageUrl) {
+          const parts = [];
+          if (m.content) parts.push({ type: 'text', text: m.content });
+          parts.push({ type: 'image_url', image_url: { url: m.imageUrl } });
+          return { role: m.role === 'assistant' ? 'assistant' : 'user', content: parts };
+        }
+        return {
+          role: m.role === 'assistant' ? 'assistant' : 'user',
+          content: m.content,
+        };
+      });
+
+      try {
+        const chatRes = await fetch(OPS_API + '/chat', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-simonoto-key': CONFIG.opsApiKey,
+          },
+          body: JSON.stringify({ messages: chatHistory }),
+        });
+
+        if (!chatRes.ok) throw new Error(`Chat API error: ${chatRes.status}`);
+
+        const reader = chatRes.body.getReader();
+        const decoder = new TextDecoder();
+        currentStreamingMessage = {
+          id: Date.now().toString(),
+          role: 'assistant',
+          content: '',
+          type: 'text',
+          timestamp: Date.now(),
+          element: null,
+        };
+        renderStreamingMessage(currentStreamingMessage);
+
+        let buffer = '';
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop();
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const data = line.slice(6).trim();
+              if (data === '[DONE]') {
+                finalizeStreamingMessage();
+                continue;
+              }
+              try {
+                const parsed = JSON.parse(data);
+                if (parsed.content) {
+                  currentStreamingMessage.content += parsed.content;
+                  updateStreamingContent(parsed.content);
+                }
+                if (parsed.error) {
+                  addMessage('assistant', `Error: ${parsed.error}`);
+                  hideThinkingIndicator();
+                }
+                if (parsed.actions) {
+                  console.log('[Chat] Actions:', parsed.actions);
+                }
+              } catch {}
+            }
+          }
+        }
+      } catch (err) {
+        hideThinkingIndicator();
+        addMessage('assistant', `Error: ${err.message}`);
+      }
+    }
+
     async function sendMessage(text) {
       if (!text.trim() && !pastedImageFile) return;
 
-      // Handle pasted image — show locally, send text if any
+      // Handle pasted image — upload to Firebase Storage, send to chat
       if (pastedImageFile) {
         const file = pastedImageFile;
         pastedImageFile = null;
         document.getElementById('paste-preview').classList.remove('visible');
-        const reader = new FileReader();
-        reader.onload = (ev) => {
-          addMessage('user', text || '[Image]', 'image', ev.target.result);
-        };
-        reader.readAsDataURL(file);
         inputEl.value = '';
-        // Image-only messages stay local (chat API is text-only)
-        if (!text.trim()) return;
-        // If text was included, fall through to send it as a regular message
+        try {
+          const downloadUrl = await uploadChatImage(file);
+          addMessage('user', text || '', 'image', downloadUrl);
+          await sendImageToChat(downloadUrl, text || '');
+        } catch (err) {
+          console.error('Image upload failed:', err);
+          addMessage('assistant', `Image upload failed: ${err.message}`);
+        }
+        return;
       }
 
       // Build reply reference
@@ -719,10 +809,18 @@
 
       // Send via orchestrator SSE chat endpoint
       try {
-        const chatHistory = messages.slice(-20).map(m => ({
-          role: m.role === 'assistant' ? 'assistant' : 'user',
-          content: m.content,
-        }));
+        const chatHistory = messages.slice(-20).map(m => {
+          if (m.type === 'image' && m.imageUrl) {
+            const parts = [];
+            if (m.content) parts.push({ type: 'text', text: m.content });
+            parts.push({ type: 'image_url', image_url: { url: m.imageUrl } });
+            return { role: m.role === 'assistant' ? 'assistant' : 'user', content: parts };
+          }
+          return {
+            role: m.role === 'assistant' ? 'assistant' : 'user',
+            content: m.content,
+          };
+        });
         if (chatHistory.length > 0 && chatHistory[chatHistory.length - 1].role === 'user') {
           chatHistory[chatHistory.length - 1].content = messageToSend;
         }
@@ -1067,13 +1165,22 @@
     
     imageBtn.addEventListener('click', () => fileInput.click());
     
-    fileInput.addEventListener('change', (e) => {
+    fileInput.addEventListener('change', async (e) => {
       const file = e.target.files[0];
-      if (file) {
-        // In a real app, you'd upload to Firebase Storage first
-        // For now, just send as base64 or file URL
-        console.log('Selected file:', file.name);
-        alert('Image upload coming soon! (Need Firebase Storage setup)');
+      if (!file) return;
+      fileInput.value = '';
+      try {
+        imageBtn.disabled = true;
+        imageBtn.textContent = '...';
+        const downloadUrl = await uploadChatImage(file);
+        addMessage('user', '', 'image', downloadUrl);
+        await sendImageToChat(downloadUrl, '');
+      } catch (err) {
+        console.error('Image upload failed:', err);
+        addMessage('assistant', `Image upload failed: ${err.message}`);
+      } finally {
+        imageBtn.disabled = false;
+        imageBtn.textContent = '\u{1F5BC}\uFE0F';
       }
     });
 
