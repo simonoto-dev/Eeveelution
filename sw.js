@@ -3,7 +3,7 @@
 // Offline-first PWA caching strategy
 // ============================================
 
-const CACHE_NAME = 'familiar-v2026-03-18a';
+const CACHE_NAME = 'familiar-v2026-03-18b';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -48,6 +48,28 @@ self.addEventListener('activate', (event) => {
     })
   );
   self.clients.claim();
+});
+
+// Push notification handler
+self.addEventListener('push', (event) => {
+  const data = event.data ? event.data.json() : {};
+  const notif = data.notification || data;
+  event.waitUntil(
+    self.registration.showNotification(notif.title || 'Team Simonoto', {
+      body: notif.body || '',
+      icon: '/bones-3.png',
+      badge: '/icon-192.png',
+      data: data,
+    })
+  );
+});
+
+// Notification click handler
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  event.waitUntil(
+    clients.openWindow('https://eeveelution.professoroffunk.com')
+  );
 });
 
 // Fetch: network-first for HTML/API, cache-first for assets

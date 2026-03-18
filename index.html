@@ -2454,6 +2454,57 @@
     }
 
     // ============================================
+    // PUSH NOTIFICATIONS (Web Push via VAPID)
+    // ============================================
+    const VAPID_PUBLIC_KEY = 'BP1Svfw0K2VXchRsrtV5u8OMr9pWrt7FIM_LcuqZX0hvfa7l-erZedZ3jnl97SOfAVmH5QSpNaGeDKaUrvweq8c';
+
+    function urlBase64ToUint8Array(base64String) {
+      const padding = '='.repeat((4 - base64String.length % 4) % 4);
+      const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+      const rawData = window.atob(base64);
+      const outputArray = new Uint8Array(rawData.length);
+      for (let i = 0; i < rawData.length; ++i) outputArray[i] = rawData.charCodeAt(i);
+      return outputArray;
+    }
+
+    async function subscribeToPush(topic) {
+      try {
+        if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+          console.warn('[Push] Push notifications not supported');
+          return false;
+        }
+        const reg = await navigator.serviceWorker.ready;
+        let subscription = await reg.pushManager.getSubscription();
+        if (!subscription) {
+          subscription = await reg.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+          });
+          console.log('[Push] New subscription created');
+        }
+        const result = await opsApi('/push/subscribe', {
+          method: 'POST',
+          body: { subscription: subscription.toJSON(), topic },
+        });
+        console.log('[Push] Subscribed to', topic, result);
+        return true;
+      } catch (err) {
+        console.error('[Push] Subscribe failed:', err);
+        return false;
+      }
+    }
+
+    async function autoResubscribePush() {
+      if (!('Notification' in window) || Notification.permission !== 'granted') return;
+      if (localStorage.getItem('eevee.notif') === 'true') {
+        await subscribeToPush('simonoto-brief');
+      }
+      if (localStorage.getItem('eevee.ops-notif') === 'true') {
+        await subscribeToPush('simonoto-alerts');
+      }
+    }
+
+    // ============================================
     // SETTINGS: THEME PREVIEWS & SCHEDULE
     // ============================================
     const THEME_DEFS = {
@@ -2536,16 +2587,30 @@
         localStorage.setItem('eevee.personality', slider.value);
       });
 
-      // Notification toggles
-      ['notif', 'ops-notif'].forEach(id => {
+      // Notification toggles — wire to Web Push
+      const NOTIF_TOPIC_MAP = {
+        'notif': 'simonoto-brief',
+        'ops-notif': 'simonoto-alerts',
+      };
+      Object.entries(NOTIF_TOPIC_MAP).forEach(([id, topic]) => {
         const toggle = document.getElementById(id + '-toggle');
         const key = 'eevee.' + id;
         if (localStorage.getItem(key) === 'true') toggle.classList.add('active');
-        toggle.addEventListener('click', () => {
-          toggle.classList.toggle('active');
-          localStorage.setItem(key, toggle.classList.contains('active'));
-          if (toggle.classList.contains('active') && 'Notification' in window) {
-            Notification.requestPermission();
+        toggle.addEventListener('click', async () => {
+          const wasActive = toggle.classList.contains('active');
+          if (!wasActive) {
+            // Turning ON — request permission, then subscribe
+            if ('Notification' in window && Notification.permission !== 'granted') {
+              const perm = await Notification.requestPermission();
+              if (perm !== 'granted') return; // user denied, don't toggle
+            }
+            toggle.classList.add('active');
+            localStorage.setItem(key, 'true');
+            await subscribeToPush(topic);
+          } else {
+            // Turning OFF
+            toggle.classList.remove('active');
+            localStorage.setItem(key, 'false');
           }
         });
       });
@@ -3004,6 +3069,8 @@
           if (navigator.onLine && offlineQueue.length > 0) {
             setTimeout(flushOfflineQueue, 2000);
           }
+          // Auto-resubscribe push notifications if previously enabled
+          autoResubscribePush();
         } else {
           loadingEl.textContent = 'No config found. Contact admin to set up /config/' + user.uid;
         }
