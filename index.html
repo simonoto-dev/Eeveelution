@@ -638,114 +638,24 @@
       }
     }
 
-    async function sendImageToChat() {
-      if (!chatReady) {
-        addMessage('assistant', 'Chat is not connected yet. Try again in a moment.');
-        return;
-      }
-      showThinkingIndicator();
-
-      const chatHistory = messages.slice(-20).map(m => {
-        if (m.type === 'image' && m.imageUrl) {
-          const parts = [];
-          if (m.content) parts.push({ type: 'text', text: m.content });
-          parts.push({ type: 'image_url', image_url: { url: m.imageUrl } });
-          return { role: m.role === 'assistant' ? 'assistant' : 'user', content: parts };
-        }
-        return {
-          role: m.role === 'assistant' ? 'assistant' : 'user',
-          content: m.content,
-        };
-      });
-
-      try {
-        const chatRes = await fetch(OPS_API + '/chat', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-simonoto-key': CONFIG.opsApiKey,
-          },
-          body: JSON.stringify({ messages: chatHistory }),
-        });
-
-        if (!chatRes.ok) throw new Error(`Chat API error: ${chatRes.status}`);
-
-        hideThinkingIndicator();
-        currentStreamingMessage = {
-          id: Date.now().toString(),
-          role: 'assistant',
-          content: '',
-          type: 'text',
-          timestamp: Date.now(),
-          element: null,
-        };
-        renderStreamingMessage();
-
-        const reader = chatRes.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n');
-          buffer = lines.pop();
-
-          for (const line of lines) {
-            if (!line.startsWith('data: ')) continue;
-            const payload = line.slice(6).trim();
-            if (payload === '[DONE]') continue;
-            try {
-              const chunk = JSON.parse(payload);
-              if (chunk.content && currentStreamingMessage) {
-                currentStreamingMessage.content += chunk.content;
-                updateStreamingContent();
-              }
-            } catch { /* skip unparseable */ }
-          }
-        }
-
-        // Persist to messages array + Firestore before finalize clears it
-        if (currentStreamingMessage && currentStreamingMessage.content) {
-          const finalMsg = {
-            id: currentStreamingMessage.id,
-            role: 'assistant',
-            content: currentStreamingMessage.content,
-            type: 'text',
-            timestamp: currentStreamingMessage.timestamp,
-          };
-          messages.push(finalMsg);
-          persistMessage(finalMsg);
-          cacheMessagesLocally();
-        }
-        finalizeStreamingMessage();
-      } catch (err) {
-        console.error('Image chat failed:', err);
-        hideThinkingIndicator();
-        if (currentStreamingMessage) finalizeStreamingMessage();
-        addMessage('assistant', `Error: ${err.message}`, 'text');
-      }
-    }
-
     async function sendMessage(text) {
       if (!text.trim() && !pastedImageFile) return;
 
-      // Handle pasted image — upload to Firebase Storage, send to chat
+      // Handle image — upload to Firebase Storage, then fall through to normal chat flow
+      let pendingImageUrl = null;
       if (pastedImageFile) {
         const file = pastedImageFile;
         pastedImageFile = null;
         document.getElementById('paste-preview').classList.remove('visible');
-        inputEl.value = '';
         try {
-          const downloadUrl = await uploadChatImage(file);
-          addMessage('user', text || '', 'image', downloadUrl);
-          await sendImageToChat();
+          pendingImageUrl = await uploadChatImage(file);
         } catch (err) {
           console.error('Image upload failed:', err);
           addMessage('assistant', `Image upload failed: ${err.message}`);
+          inputEl.value = '';
+          return;
         }
-        return;
+        if (!text.trim()) text = '[Image]';
       }
 
       // Build reply reference
@@ -757,8 +667,8 @@
         id: Date.now().toString(),
         role: 'user',
         content: text,
-        type: 'text',
-        imageUrl: null,
+        type: pendingImageUrl ? 'image' : 'text',
+        imageUrl: pendingImageUrl || null,
         timestamp: Date.now(),
         replyTo: replyRef,
       };
@@ -836,7 +746,15 @@
           };
         });
         if (chatHistory.length > 0 && chatHistory[chatHistory.length - 1].role === 'user') {
-          chatHistory[chatHistory.length - 1].content = messageToSend;
+          const lastEntry = chatHistory[chatHistory.length - 1];
+          if (Array.isArray(lastEntry.content)) {
+            // Image message — update the text part with enriched message
+            const textPart = lastEntry.content.find(p => p.type === 'text');
+            if (textPart) textPart.text = messageToSend;
+            else lastEntry.content.unshift({ type: 'text', text: messageToSend });
+          } else {
+            lastEntry.content = messageToSend;
+          }
         }
 
         const chatRes = await fetch(OPS_API + '/chat', {
@@ -1183,15 +1101,11 @@
       const file = e.target.files[0];
       if (!file) return;
       fileInput.value = '';
+      pastedImageFile = file;
+      imageBtn.disabled = true;
+      imageBtn.textContent = '...';
       try {
-        imageBtn.disabled = true;
-        imageBtn.textContent = '...';
-        const downloadUrl = await uploadChatImage(file);
-        addMessage('user', '', 'image', downloadUrl);
-        await sendImageToChat();
-      } catch (err) {
-        console.error('Image upload failed:', err);
-        addMessage('assistant', `Image upload failed: ${err.message}`);
+        await sendMessage(inputEl.value || '');
       } finally {
         imageBtn.disabled = false;
         imageBtn.textContent = '\u{1F5BC}\uFE0F';
