@@ -800,6 +800,14 @@
             if (payload === '[DONE]') continue;
             try {
               const chunk = JSON.parse(payload);
+
+              // Tool call indicator
+              if (chunk.tool) {
+                renderToolIndicator(chunk.tool, chunk.status, chunk.summary);
+                continue;
+              }
+
+              // Regular content
               if (chunk.content && currentStreamingMessage) {
                 currentStreamingMessage.content += chunk.content;
                 updateStreamingContent();
@@ -940,6 +948,53 @@
 
       // Cache messages locally for offline
       cacheMessagesLocally();
+    }
+
+    // ============================================
+    // TOOL CALL INDICATORS
+    // ============================================
+    function renderToolIndicator(toolName, status, summary) {
+      const id = 'tool-indicator-' + toolName.replace(/[^a-z0-9]/g, '-');
+      let el = document.getElementById(id);
+
+      if (el) {
+        // Update existing indicator
+        el.className = `tool-indicator tool-${status}`;
+        el.textContent = formatToolIndicator(toolName, status, summary);
+      } else {
+        // Create new indicator
+        el = document.createElement('div');
+        el.id = id;
+        el.className = `tool-indicator tool-${status}`;
+        el.textContent = formatToolIndicator(toolName, status, summary);
+        chatEl.appendChild(el);
+      }
+      chatEl.scrollTop = chatEl.scrollHeight;
+    }
+
+    function formatToolIndicator(tool, status, summary) {
+      const names = {
+        create_proposal: 'Creating proposal',
+        list_proposals: 'Listing proposals',
+        resolve_proposal: 'Resolving proposal',
+        batch_resolve: 'Batch resolving',
+        get_proposal: 'Fetching proposal details',
+        get_brief: 'Fetching morning brief',
+        get_department_status: 'Checking departments',
+        search_brain: 'Searching brain',
+        get_executor_status: 'Checking executors',
+        set_priority: 'Setting priority',
+        set_pace: 'Setting pace',
+        store_memory: 'Storing memory',
+        send_directive: 'Sending to Claude Code',
+        send_push: 'Sending notification',
+        check_push: 'Checking notifications',
+      };
+      const label = names[tool] || tool;
+      if (status === 'calling') return label + '...';
+      if (status === 'ok') return label + ' \u2014 done';
+      if (status === 'error') return label + ' \u2014 failed' + (summary ? ': ' + summary.slice(0, 100) : '');
+      return label;
     }
 
     // ============================================
@@ -1218,6 +1273,7 @@
       content.appendChild(renderDeadlines(deadlines));
       content.appendChild(renderBrainSection(brainStats));
       content.appendChild(renderRefreshBtn());
+      content.appendChild(await renderToolAuditLog());
     }
 
     function renderStatusBar(status, executor) {
@@ -1610,7 +1666,21 @@
         html += '</div>';
       }
 
+      html += '<div style="margin-top:12px"><button class="ops-btn" id="test-push-btn">Test Push Notification</button></div>';
+
       section.innerHTML += html;
+
+      section.querySelector('#test-push-btn')?.addEventListener('click', async (e) => {
+        e.target.textContent = 'Sending...';
+        const result = await opsApi('/push/test', { method: 'POST' });
+        if (result?.sent) {
+          e.target.textContent = 'Sent to ' + result.sent + ' device(s)!';
+        } else {
+          e.target.textContent = 'No subscribers \u2014 enable notifications first';
+        }
+        setTimeout(() => { e.target.textContent = 'Test Push Notification'; }, 3000);
+      });
+
       return section;
     }
 
@@ -1654,10 +1724,28 @@
           </div>` : ''}
         `;
 
-        card.querySelector('.ops-btn.expand').addEventListener('click', (e) => {
+        card.querySelector('.ops-btn.expand').addEventListener('click', async (e) => {
           const body = card.querySelector('.ops-proposal-body');
-          body.classList.toggle('expanded');
-          e.target.textContent = body.classList.contains('expanded') ? 'Hide details' : 'Show details';
+          if (body.classList.contains('expanded')) {
+            body.classList.remove('expanded');
+            e.target.textContent = 'Show details';
+            return;
+          }
+
+          e.target.textContent = 'Loading...';
+          const detail = await opsApi('/proposals/' + p.id + '/detail');
+          if (detail && !detail.error) {
+            let html = '<div><strong>Status:</strong> ' + escapeHtml(detail.status) + ' | <strong>Attempts:</strong> ' + (detail.attempt_count || 0) + '</div>';
+            if (detail.department) html += '<div><strong>Department:</strong> ' + escapeHtml(detail.department) + '</div>';
+            if (detail.resolution_note) html += '<div><strong>Note:</strong> ' + escapeHtml(detail.resolution_note) + '</div>';
+            html += '<div style="margin-top:8px">' + escapeHtml(detail.body) + '</div>';
+            if (detail.execution_output) {
+              html += '<div style="margin-top:8px;padding:8px;background:rgba(0,0,0,0.2);border-radius:8px;font-size:12px;max-height:300px;overflow-y:auto;white-space:pre-wrap">' + escapeHtml(detail.execution_output.slice(0, 5000)) + '</div>';
+            }
+            body.innerHTML = html;
+          }
+          body.classList.add('expanded');
+          e.target.textContent = 'Hide details';
         });
 
         card.querySelector('.ops-btn.approve')?.addEventListener('click', async () => {
@@ -1941,6 +2029,31 @@
           if (e.key === 'Enter') doSearch();
         });
       }, 0);
+
+      return section;
+    }
+
+    async function renderToolAuditLog() {
+      const section = document.createElement('div');
+      section.className = 'ops-section';
+      section.innerHTML = '<div class="ops-section-title">Evie Tool Log</div>';
+
+      const logs = await opsApi('/chat/tool-log?last=15');
+      if (!logs || !Array.isArray(logs) || logs.length === 0) {
+        section.innerHTML += '<div class="ops-empty">No recent tool calls</div>';
+        return section;
+      }
+
+      logs.forEach(log => {
+        const icon = log.status === 'ok' ? '\u2705' : '\u274C';
+        const time = new Date(log.timestamp + 'Z').toLocaleTimeString();
+        const div = document.createElement('div');
+        div.className = 'ops-proposal';
+        div.innerHTML = '<div class="ops-proposal-title">' + icon + ' ' + escapeHtml(log.tool_name) + '</div>' +
+          '<div class="ops-proposal-meta">' + time + ' \u00B7 ' + (log.duration_ms || 0) + 'ms</div>' +
+          (log.result ? '<div class="ops-proposal-body">' + escapeHtml(log.result.slice(0, 200)) + '</div>' : '');
+        section.appendChild(div);
+      });
 
       return section;
     }

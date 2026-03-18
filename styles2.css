@@ -3622,6 +3622,22 @@ header, #input-area, #bottom-nav, .bubble, .avatar, #message-input, #send-btn, .
 }
 
 /* ============================================
+   TOOL CALL INDICATORS (chat)
+   ============================================ */
+.tool-indicator {
+  font-size: 12px;
+  padding: 4px 12px;
+  margin: 2px 8px;
+  border-radius: 8px;
+  font-family: 'Quicksand', sans-serif;
+  opacity: 0.7;
+  transition: opacity 0.3s;
+}
+.tool-calling { color: var(--text-muted); font-style: italic; }
+.tool-ok { color: #22c55e; }
+.tool-error { color: #ef4444; }
+
+/* ============================================
    MOBILE: Theme grid & settings
    ============================================ */
 @media (max-width: 600px) {
