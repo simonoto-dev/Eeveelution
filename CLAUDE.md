@@ -85,9 +85,9 @@ Everything lives in `index.html`. The `<script type="module">` section is organi
 
 **Critical:** `currentStreamingMessage` must be initialized with `{id, role, content, type, timestamp, element: null}` BEFORE calling `renderStreamingMessage()`.
 
-### Image Paste
+### Image Upload + Vision
 
-Images pasted in chat are shown locally as data URLs. The chat API is text-only, so images are not sent to the AI. If text accompanies an image, the text is sent as a regular message.
+Images (pasted or file-picked) are uploaded to Firebase Storage (`chat-images/{uid}/{timestamp}_{filename}`), and the download URL is sent to the orchestrator as an OpenRouter multimodal `image_url` content part. Claude Sonnet analyzes the image and responds. Images flow through `sendMessage()` alongside text — they get brain context, personality hints, and offline queueing like any other message. Client-side validation: JPEG/PNG/GIF/WebP only, 5MB max. Storage rules enforce the same server-side.
 
 ### localStorage Keys
 

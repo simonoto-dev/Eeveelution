@@ -301,6 +301,8 @@
       const user = getAuth().currentUser;
       if (!user) throw new Error('Not authenticated');
       if (file.size > 5 * 1024 * 1024) throw new Error('Image too large (5MB max)');
+      const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+      if (!ALLOWED_TYPES.includes(file.type)) throw new Error('Only JPEG, PNG, GIF, and WebP images are allowed');
       const safeName = (file.name || 'image.jpg').replace(/[^a-zA-Z0-9._-]/g, '_');
       const filename = `${Date.now()}_${safeName}`;
       const storageRef = ref(storage, `chat-images/${user.uid}/${filename}`);
@@ -651,7 +653,9 @@
           pendingImageUrl = await uploadChatImage(file);
         } catch (err) {
           console.error('Image upload failed:', err);
-          addMessage('assistant', `Image upload failed: ${err.message}`);
+          addMessage('assistant', err.message.includes('5MB') || err.message.includes('Only JPEG')
+            ? `Image upload failed: ${err.message}`
+            : 'Image upload failed. Please try again.');
           inputEl.value = '';
           return;
         }
