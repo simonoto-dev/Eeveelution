@@ -636,7 +636,7 @@
       }
     }
 
-    async function sendImageToChat(imageUrl, text) {
+    async function sendImageToChat() {
       if (!chatReady) return;
       showThinkingIndicator();
 
@@ -665,8 +665,7 @@
 
         if (!chatRes.ok) throw new Error(`Chat API error: ${chatRes.status}`);
 
-        const reader = chatRes.body.getReader();
-        const decoder = new TextDecoder();
+        hideThinkingIndicator();
         currentStreamingMessage = {
           id: Date.now().toString(),
           role: 'assistant',
@@ -675,39 +674,47 @@
           timestamp: Date.now(),
           element: null,
         };
-        renderStreamingMessage(currentStreamingMessage);
+        renderStreamingMessage();
 
+        const reader = chatRes.body.getReader();
+        const decoder = new TextDecoder();
         let buffer = '';
+
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
           buffer += decoder.decode(value, { stream: true });
           const lines = buffer.split('\n');
           buffer = lines.pop();
+
           for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              const data = line.slice(6).trim();
-              if (data === '[DONE]') {
-                finalizeStreamingMessage();
-                continue;
+            if (!line.startsWith('data: ')) continue;
+            const payload = line.slice(6).trim();
+            if (payload === '[DONE]') continue;
+            try {
+              const chunk = JSON.parse(payload);
+              if (chunk.content && currentStreamingMessage) {
+                currentStreamingMessage.content += chunk.content;
+                updateStreamingContent();
               }
-              try {
-                const parsed = JSON.parse(data);
-                if (parsed.content) {
-                  currentStreamingMessage.content += parsed.content;
-                  updateStreamingContent(parsed.content);
-                }
-                if (parsed.error) {
-                  addMessage('assistant', `Error: ${parsed.error}`);
-                  hideThinkingIndicator();
-                }
-                if (parsed.actions) {
-                  console.log('[Chat] Actions:', parsed.actions);
-                }
-              } catch {}
-            }
+            } catch { /* skip unparseable */ }
           }
         }
+
+        // Persist to messages array + Firestore before finalize clears it
+        if (currentStreamingMessage && currentStreamingMessage.content) {
+          const finalMsg = {
+            id: currentStreamingMessage.id,
+            role: 'assistant',
+            content: currentStreamingMessage.content,
+            type: 'text',
+            timestamp: currentStreamingMessage.timestamp,
+          };
+          messages.push(finalMsg);
+          persistMessage(finalMsg);
+          cacheMessagesLocally();
+        }
+        finalizeStreamingMessage();
       } catch (err) {
         hideThinkingIndicator();
         addMessage('assistant', `Error: ${err.message}`);
@@ -726,7 +733,7 @@
         try {
           const downloadUrl = await uploadChatImage(file);
           addMessage('user', text || '', 'image', downloadUrl);
-          await sendImageToChat(downloadUrl, text || '');
+          await sendImageToChat();
         } catch (err) {
           console.error('Image upload failed:', err);
           addMessage('assistant', `Image upload failed: ${err.message}`);
@@ -1174,7 +1181,7 @@
         imageBtn.textContent = '...';
         const downloadUrl = await uploadChatImage(file);
         addMessage('user', '', 'image', downloadUrl);
-        await sendImageToChat(downloadUrl, '');
+        await sendImageToChat();
       } catch (err) {
         console.error('Image upload failed:', err);
         addMessage('assistant', `Image upload failed: ${err.message}`);
