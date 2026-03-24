@@ -32,6 +32,28 @@
     </div>
   </div>
 
+  <!-- Pairing Screen -->
+  <div id="pairing-screen">
+    <div style="text-align: center; max-width: 500px;">
+      <img src="bones-3.png" alt="Evie" style="width: 100px; height: 100px; border-radius: 50%; margin-bottom: 20px; object-fit: cover; opacity: 0.7;">
+      <h2 style="color: var(--text); font-size: 22px; margin-bottom: 8px;">Device Pairing Required</h2>
+      <p style="color: var(--text-muted); margin-bottom: 24px;">This device needs to be approved before it can connect.</p>
+
+      <div style="background: var(--bg-input); border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-bottom: 16px; text-align: left;">
+        <p style="color: var(--text-muted); font-size: 13px; margin: 0 0 8px 0;">1. SSH to your Pi and run:</p>
+        <pre style="background: var(--bg-dark); border-radius: 8px; padding: 12px; color: var(--accent-secondary); font-size: 13px; overflow-x: auto; margin: 0 0 12px 0;">openclaw gateway call device.pair.list</pre>
+        <p style="color: var(--text-muted); font-size: 13px; margin: 0 0 8px 0;">2. Find your device and approve it:</p>
+        <pre style="background: var(--bg-dark); border-radius: 8px; padding: 12px; color: var(--accent-secondary); font-size: 13px; overflow-x: auto; margin: 0;">openclaw gateway call device.pair.approve --params '{"requestId":"..."}'</pre>
+      </div>
+
+      <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 16px;">Device ID: <code id="pairing-device-id" style="color: var(--accent); font-size: 12px;">loading...</code></p>
+
+      <button id="pairing-retry-btn" style="padding: 12px 32px; background: var(--accent); border: none; border-radius: 10px; color: white; font-family: 'Quicksand', sans-serif; font-size: 15px; font-weight: 600; cursor: pointer;">
+        Retry Connection
+      </button>
+    </div>
+  </div>
+
   <!-- App (hidden until authenticated) -->
   <div id="app">
     <header>
@@ -198,6 +220,24 @@
       </div>
 
       <div class="settings-section">
+        <div class="settings-section-title">Text-to-Speech</div>
+        <div class="settings-row">
+          <div>
+            <div class="settings-label">Read responses aloud</div>
+            <div class="settings-sublabel">Evie speaks her messages using your device voice</div>
+          </div>
+          <div class="settings-toggle" id="tts-toggle"></div>
+        </div>
+        <div class="settings-row" id="tts-voice-row" style="display:none;">
+          <div>
+            <div class="settings-label">Voice</div>
+            <div class="settings-sublabel" id="tts-voice-name">Default</div>
+          </div>
+          <button class="settings-btn" id="tts-voice-btn">Change</button>
+        </div>
+      </div>
+
+      <div class="settings-section">
         <div class="settings-section-title">Notifications</div>
         <div class="settings-row">
           <div>
@@ -281,7 +321,6 @@
     import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
     import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
     import { getFirestore, doc, getDoc, collection, addDoc, query, where, orderBy, limit as firestoreLimit, getDocs, Timestamp, startAfter } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
-    import { getStorage, ref, uploadBytes, getDownloadURL } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js';
 
     const firebaseConfig = {
       apiKey: "AIzaSyCntodkV9WMDQOPaSUWH-VuURXWFj38erM",
@@ -293,36 +332,29 @@
     };
 
     const app = initializeApp(firebaseConfig);
-    const storage = getStorage(app);
     const auth = getAuth(app);
     const db = getFirestore(app);
-
-    async function uploadChatImage(file) {
-      const user = getAuth().currentUser;
-      if (!user) throw new Error('Not authenticated');
-      if (file.size > 5 * 1024 * 1024) throw new Error('Image too large (5MB max)');
-      const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-      if (!ALLOWED_TYPES.includes(file.type)) throw new Error('Only JPEG, PNG, GIF, and WebP images are allowed');
-      const safeName = (file.name || 'image.jpg').replace(/[^a-zA-Z0-9._-]/g, '_');
-      const filename = `${Date.now()}_${safeName}`;
-      const storageRef = ref(storage, `chat-images/${user.uid}/${filename}`);
-      await uploadBytes(storageRef, file);
-      return getDownloadURL(storageRef);
-    }
 
     // ============================================
     // CONFIGURATION (loaded from Firestore after auth)
     // ============================================
-    const CONFIG = { opsApiKey: '', brainApiKey: '' };
+    const CONFIG = {
+      wsUrl: '',
+      gatewayToken: '',
+      chatId: ''
+    };
 
     async function loadConfig(uid) {
       try {
         const snap = await getDoc(doc(db, 'config', uid));
-        if (!snap.exists()) return false;
-        const data = snap.data();
-        CONFIG.opsApiKey = data.opsApiKey || '';
-        CONFIG.brainApiKey = data.brainApiKey || '';
-        return true;
+        if (snap.exists()) {
+          const data = snap.data();
+          CONFIG.wsUrl = data.wsUrl || '';
+          CONFIG.gatewayToken = data.gatewayToken || '';
+          CONFIG.chatId = data.chatId || '';
+          return true;
+        }
+        return false;
       } catch (err) {
         console.error('Failed to load config:', err);
         return false;
@@ -330,9 +362,106 @@
     }
 
     // ============================================
+    // DEVICE IDENTITY (Ed25519 crypto pairing)
+    // ============================================
+    const DEVICE_IDENTITY_KEY = 'openclaw.device.auth.v1';
+    const DEVICE_TOKENS_KEY = 'openclaw.device.tokens.v1';
+
+    function bytesToHex(bytes) {
+      return Array.from(new Uint8Array(bytes))
+        .map(b => b.toString(16).padStart(2, '0'))
+        .join('');
+    }
+
+    function bytesToBase64Url(bytes) {
+      const arr = new Uint8Array(bytes);
+      let binary = '';
+      for (const b of arr) binary += String.fromCharCode(b);
+      return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    }
+
+    async function generateDeviceIdentity() {
+      const keyPair = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
+      const publicKeyRaw = await crypto.subtle.exportKey('raw', keyPair.publicKey);
+      const privateKeyJwk = await crypto.subtle.exportKey('jwk', keyPair.privateKey);
+
+      // deviceId = SHA-256(publicKeyRaw) as hex (matches gateway's deriveDeviceIdFromPublicKey)
+      const hashBuffer = await crypto.subtle.digest('SHA-256', publicKeyRaw);
+      const deviceId = bytesToHex(hashBuffer);
+
+      return {
+        deviceId,
+        publicKey: bytesToBase64Url(publicKeyRaw),
+        privateKeyJwk
+      };
+    }
+
+    async function getOrCreateDeviceIdentity() {
+      try {
+        const stored = localStorage.getItem(DEVICE_IDENTITY_KEY);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (parsed.version === 1 && parsed.deviceId && parsed.publicKey && parsed.privateKeyJwk) {
+            return parsed;
+          }
+        }
+      } catch {}
+
+      const identity = await generateDeviceIdentity();
+      const record = {
+        version: 1,
+        ...identity,
+        createdAtMs: Date.now()
+      };
+      localStorage.setItem(DEVICE_IDENTITY_KEY, JSON.stringify(record));
+      return record;
+    }
+
+    async function signMessage(privateKeyJwk, message) {
+      const key = await crypto.subtle.importKey('jwk', privateKeyJwk, { name: 'Ed25519' }, false, ['sign']);
+      const encoded = new TextEncoder().encode(message);
+      const signature = await crypto.subtle.sign({ name: 'Ed25519' }, key, encoded);
+      return bytesToBase64Url(signature);
+    }
+
+    function storeDeviceToken(deviceId, role, token, scopes) {
+      let existingTokens = {};
+      try {
+        const item = localStorage.getItem(DEVICE_TOKENS_KEY);
+        if (item) {
+          const parsed = JSON.parse(item);
+          if (parsed.deviceId === deviceId) existingTokens = parsed.tokens || {};
+        }
+      } catch {}
+      const record = {
+        version: 1,
+        deviceId,
+        tokens: {
+          ...existingTokens,
+          [role]: { token, role, scopes, updatedAtMs: Date.now() }
+        }
+      };
+      localStorage.setItem(DEVICE_TOKENS_KEY, JSON.stringify(record));
+    }
+
+    function getStoredToken(deviceId, role) {
+      try {
+        const item = localStorage.getItem(DEVICE_TOKENS_KEY);
+        if (!item) return null;
+        const stored = JSON.parse(item);
+        if (stored.deviceId !== deviceId) return null;
+        return stored.tokens[role]?.token || null;
+      } catch {
+        return null;
+      }
+    }
+
+    // ============================================
     // STATE
     // ============================================
-    let chatReady = false;
+    let ws = null;
+    let reconnectAttempts = 0;
+    const maxReconnectAttempts = 10;
     const messages = [];
     let isRecordingVoice = false;
 
@@ -347,12 +476,223 @@
     const loadingEl = document.getElementById('loading');
 
     // ============================================
-    // CONNECTION STATUS
+    // WEBSOCKET
     // ============================================
+    let wsAuthenticated = false;
+    let pendingRequests = new Map();
+
+    function connect() {
+      const url = CONFIG.wsUrl;
+      ws = new WebSocket(url);
+      wsAuthenticated = false;
+
+      ws.onopen = () => {
+        console.log('⚡ WebSocket opened, waiting for challenge...');
+      };
+
+      ws.onmessage = async (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          
+          // Handle challenge from gateway
+          if (data.type === 'event' && data.event === 'connect.challenge') {
+            console.log('📋 Received challenge, sending connect...');
+            const nonce = data.payload?.nonce || '';
+            await sendConnectRequest(nonce);
+            return;
+          }
+          
+          // Handle connect response
+          if (data.type === 'res' && !wsAuthenticated) {
+            if (data.ok) {
+              console.log('✅ Authenticated!');
+              wsAuthenticated = true;
+
+              // Store device token if gateway provides one
+              if (data.payload?.auth?.deviceToken) {
+                try {
+                  const identity = await getOrCreateDeviceIdentity();
+                  storeDeviceToken(
+                    identity.deviceId,
+                    data.payload.auth.role || 'operator',
+                    data.payload.auth.deviceToken,
+                    data.payload.auth.scopes || []
+                  );
+                  console.log('💾 Device token stored');
+                } catch (e) {
+                  console.warn('Failed to store device token:', e);
+                }
+              }
+
+              // Hide pairing screen if it was showing
+              document.getElementById('pairing-screen').classList.remove('visible');
+              updateStatus(true);
+              loadingEl.classList.remove('active');
+            } else {
+              // Check if error indicates pairing or identity issue
+              const errCode = data.error?.code || '';
+              const errMsg = data.error?.message || '';
+              const errCause = data.error?.cause || '';
+              const needsPairing = errCode === 'UNAUTHORIZED' || errCode === 'INVALID_REQUEST'
+                || errCause === 'device-auth-invalid'
+                || errMsg.toLowerCase().includes('pair')
+                || errMsg.toLowerCase().includes('mismatch')
+                || errMsg.toLowerCase().includes('identity');
+              if (needsPairing) {
+                console.log('🔑 Device pairing required, clearing stale token');
+                // Clear token only - keep keypair so device identity is stable across re-pairs
+                localStorage.removeItem(DEVICE_TOKENS_KEY);
+                reconnectAttempts = maxReconnectAttempts; // prevent auto-reconnect
+                showPairingScreen();
+                ws.close();
+              } else {
+                console.error('❌ Auth failed:', data.error);
+                ws.close();
+              }
+            }
+            return;
+          }
+          
+          // Handle request responses
+          if (data.type === 'res' && data.id) {
+            const handler = pendingRequests.get(data.id);
+            if (handler) {
+              pendingRequests.delete(data.id);
+              if (data.ok) {
+                handler.resolve(data.payload);
+              } else {
+                handler.reject(new Error(data.error?.message || 'Request failed'));
+              }
+            }
+            return;
+          }
+          
+          // Handle regular messages
+          handleMessage(data);
+        } catch (e) {
+          console.error('Message parse error:', e);
+          handleStreamChunk(event.data);
+        }
+      };
+
+      ws.onclose = (event) => {
+        wsAuthenticated = false;
+        updateStatus(false);
+        // Gateway closes with 1008 + reason for device auth failures
+        if (event.reason && (event.reason.includes('mismatch') || event.reason.includes('device'))) {
+          console.log('🔑 Device auth rejected:', event.reason);
+          // Clear token only - keep keypair so device identity is stable
+          localStorage.removeItem(DEVICE_TOKENS_KEY);
+          reconnectAttempts = maxReconnectAttempts; // stop auto-reconnect
+          showPairingScreen();
+          return;
+        }
+        attemptReconnect();
+      };
+
+      ws.onerror = (err) => {
+        console.error('WebSocket error:', err);
+      };
+    }
+
+    async function sendConnectRequest(nonce = '') {
+      try {
+        const identity = await getOrCreateDeviceIdentity();
+        const role = 'operator';
+        const scopes = ['operator.admin', 'operator.read', 'operator.write', 'operator.approvals', 'operator.pairing'];
+        const storedToken = getStoredToken(identity.deviceId, role);
+
+        // Update pairing screen device ID display
+        const deviceIdEl = document.getElementById('pairing-device-id');
+        if (deviceIdEl) deviceIdEl.textContent = identity.deviceId;
+
+        // Use stored device token if available, otherwise gateway token for both
+        // signature and auth.token — they must match for gateway verification
+        const authToken = storedToken || CONFIG.gatewayToken || '';
+        const signedAtMs = Date.now();
+        const version = nonce ? 'v2' : 'v1';
+        const parts = [
+          version,
+          identity.deviceId,
+          'webchat',
+          'ui',
+          role,
+          scopes.join(','),
+          String(signedAtMs),
+          authToken
+        ];
+        if (version === 'v2') parts.push(nonce);
+        const message = parts.join('|');
+
+        const signature = await signMessage(identity.privateKeyJwk, message);
+        const connectMsg = {
+          type: 'req',
+          id: generateId(),
+          method: 'connect',
+          params: {
+            minProtocol: 3,
+            maxProtocol: 3,
+            client: {
+              id: 'webchat',
+              version: '1.0.0',
+              platform: 'web',
+              mode: 'ui'
+            },
+            role: role,
+            scopes: scopes,
+            device: {
+              id: identity.deviceId,
+              publicKey: identity.publicKey,
+              signature: signature,
+              signedAt: signedAtMs,
+              nonce: nonce || undefined
+            },
+            auth: authToken ? { token: authToken } : undefined,
+            locale: navigator.language || 'en-US',
+            userAgent: navigator.userAgent
+          }
+        };
+
+        console.log('📡 Connect msg:', JSON.stringify(connectMsg, null, 2));
+        ws.send(JSON.stringify(connectMsg));
+      } catch (err) {
+        console.error('Failed to build connect request:', err);
+      }
+    }
+
     function generateId() {
       return Array.from(crypto.getRandomValues(new Uint8Array(8)))
         .map(b => b.toString(16).padStart(2, '0'))
         .join('');
+    }
+
+    function sendRequest(method, params) {
+      return new Promise((resolve, reject) => {
+        if (!ws || ws.readyState !== WebSocket.OPEN || !wsAuthenticated) {
+          reject(new Error('Not connected'));
+          return;
+        }
+
+        const id = generateId();
+        pendingRequests.set(id, { resolve, reject });
+
+        const msg = {
+          type: 'req',
+          id,
+          method,
+          params
+        };
+
+        ws.send(JSON.stringify(msg));
+
+        // Timeout after 30 seconds
+        setTimeout(() => {
+          if (pendingRequests.has(id)) {
+            pendingRequests.delete(id);
+            reject(new Error('Request timeout'));
+          }
+        }, 30000);
+      });
     }
 
     function updateStatus(connected) {
@@ -360,10 +700,20 @@
         statusEl.classList.remove('disconnected');
         statusEl.classList.add('connected');
         statusTextEl.textContent = 'Online';
+        reconnectAttempts = 0;
       } else {
         statusEl.classList.remove('connected');
         statusEl.classList.add('disconnected');
-        statusTextEl.textContent = 'Offline';
+        statusTextEl.textContent = 'Reconnecting...';
+      }
+    }
+
+    function attemptReconnect() {
+      if (reconnectAttempts < maxReconnectAttempts) {
+        reconnectAttempts++;
+        const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000);
+        console.log(`Reconnecting in ${delay/1000}s... (${reconnectAttempts}/${maxReconnectAttempts})`);
+        setTimeout(connect, delay);
       }
     }
 
@@ -371,6 +721,142 @@
     // MESSAGE HANDLING
     // ============================================
     let currentStreamingMessage = null;
+
+    function handleMessage(data) {
+      console.log('📨 Message:', data);
+
+      // Handle chat events from OpenClaw
+      if (data.type === 'event' && data.event === 'chat') {
+        const chatData = data.payload;
+
+        if (chatData.state === 'delta') {
+          // Streaming response - hide thinking indicator
+          hideThinkingIndicator();
+          const content = extractContent(chatData.message);
+          if (content && !currentStreamingMessage) {
+            currentStreamingMessage = {
+              role: 'assistant',
+              content: '',
+              type: 'text',
+              element: null
+            };
+            renderStreamingMessage();
+          }
+          if (content) {
+            currentStreamingMessage.content = content;
+            updateStreamingContent();
+          }
+        } else if (chatData.state === 'final' || chatData.state === 'aborted') {
+          hideThinkingIndicator();
+          // If final has message content but no streaming message was started, show it directly
+          const content = extractContent(chatData.message);
+          if (content && !currentStreamingMessage) {
+            addMessage('assistant', content, 'text');
+          } else {
+            // Update content from final if available
+            if (content && currentStreamingMessage) {
+              currentStreamingMessage.content = content;
+              updateStreamingContent();
+            }
+            finalizeStreamingMessage();
+          }
+        } else if (chatData.state === 'error') {
+          const errMsg = chatData.errorMessage || 'Unknown error';
+          console.error('🔴 Chat error:', errMsg);
+          // Don't show billing/failover errors - gateway will retry with fallback model
+          if (errMsg.includes('billing') || errMsg.includes('credits') || errMsg.includes('balance')) {
+            console.log('⏳ Provider failover in progress...');
+            return;
+          }
+          hideThinkingIndicator();
+          finalizeStreamingMessage();
+          addMessage('assistant', `Error: ${errMsg}`, 'text');
+        }
+        return;
+      }
+
+      // Handle agent streaming events (real-time, not throttled like chat deltas)
+      if (data.type === 'event' && data.event === 'agent') {
+        const agentData = data.payload;
+
+        if (agentData.stream === 'assistant' && agentData.data?.text) {
+          hideThinkingIndicator();
+          if (!currentStreamingMessage) {
+            currentStreamingMessage = {
+              role: 'assistant',
+              content: '',
+              type: 'text',
+              element: null
+            };
+            renderStreamingMessage();
+          }
+          currentStreamingMessage.content = agentData.data.text;
+          updateStreamingContent();
+        } else if (agentData.stream === 'lifecycle') {
+          if (agentData.data?.phase === 'start') {
+            showThinkingIndicator();
+          } else if (agentData.data?.phase === 'error') {
+            hideThinkingIndicator();
+            finalizeStreamingMessage();
+            addMessage('assistant', `Error: ${agentData.data.error || 'Agent error'}`, 'text');
+          }
+        }
+        return;
+      }
+
+      // Handle other message formats (legacy)
+      const content = data.content || data.text || data.message || '';
+      const role = data.role || (data.author === 'user' ? 'user' : 'assistant');
+      
+      if (content) {
+        if (currentStreamingMessage) {
+          finalizeStreamingMessage();
+        }
+        
+        if (data.type === 'voice' || data.voice) {
+          addMessage(role, content, 'voice');
+        } else if (data.type === 'image' || data.image) {
+          addMessage(role, content, 'image', data.imageUrl);
+        } else {
+          addMessage(role, content, 'text');
+        }
+      }
+    }
+
+    function extractContent(message) {
+      if (!message) return '';
+      if (typeof message === 'string') return message;
+      if (message.content) {
+        if (typeof message.content === 'string') return message.content;
+        if (Array.isArray(message.content)) {
+          return message.content
+            .filter(c => c.type === 'text')
+            .map(c => c.text)
+            .join('');
+        }
+      }
+      return '';
+    }
+
+    function handleStreamChunk(data) {
+      // Handle streaming response (typewriter effect)
+      if (typeof data === 'string') {
+        // Start streaming message if not already
+        if (!currentStreamingMessage) {
+          currentStreamingMessage = {
+            role: 'assistant',
+            content: '',
+            type: 'text',
+            element: null
+          };
+          renderStreamingMessage();
+        }
+        
+        // Append content
+        currentStreamingMessage.content += data;
+        updateStreamingContent();
+      }
+    }
 
     // ============================================
     // EMOTE SYSTEM
@@ -482,7 +968,7 @@
     let revealedLength = 0;
     let revealTimer = null;
     let streamComplete = false;
-    const REVEAL_SPEED = 50; // ms per character (~20 chars/sec, slower ink bleed)
+    const REVEAL_SPEED = 8; // ms per character (~20 chars/sec, slower ink bleed)
 
     function updateStreamingContent() {
       if (!currentStreamingMessage || !currentStreamingMessage.element) return;
@@ -535,6 +1021,60 @@
       }
     }
 
+    // ============ TEXT-TO-SPEECH ============
+    const synth = window.speechSynthesis;
+    let ttsVoice = null;
+
+    function pickTTSVoice() {
+      const voices = synth.getVoices();
+      if (!voices.length) return null;
+      const savedVoice = localStorage.getItem('eevee.tts-voice');
+      if (savedVoice) {
+        const found = voices.find(v => v.name === savedVoice);
+        if (found) return found;
+      }
+      // Prefer warm, natural-sounding female voices
+      const preferred = [
+        'Samantha', 'Karen', 'Moira', 'Tessa', 'Fiona', // macOS/iOS
+        'Google UK English Female', 'Google US English',   // Chrome
+        'Microsoft Zira', 'Microsoft Jenny',               // Windows
+      ];
+      for (const name of preferred) {
+        const v = voices.find(v => v.name.includes(name));
+        if (v) return v;
+      }
+      // Fallback: first English voice
+      return voices.find(v => v.lang.startsWith('en')) || voices[0];
+    }
+
+    function speakText(text) {
+      if (!synth || localStorage.getItem('eevee.tts') !== 'true') return;
+      // Strip markdown formatting for cleaner speech
+      const clean = text
+        .replace(/```[\s\S]*?```/g, ' code block ')
+        .replace(/`([^`]+)`/g, '$1')
+        .replace(/\*\*([^*]+)\*\*/g, '$1')
+        .replace(/\*([^*]+)\*/g, '$1')
+        .replace(/#{1,6}\s*/g, '')
+        .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+        .replace(/[_~>|]/g, '')
+        .trim();
+      if (!clean) return;
+      synth.cancel(); // Stop any previous speech
+      const utter = new SpeechSynthesisUtterance(clean);
+      if (!ttsVoice) ttsVoice = pickTTSVoice();
+      if (ttsVoice) utter.voice = ttsVoice;
+      utter.rate = 1.05;
+      utter.pitch = 1.1;
+      synth.speak(utter);
+    }
+
+    // Load voices (async on some browsers)
+    if (synth) {
+      synth.onvoiceschanged = () => { ttsVoice = pickTTSVoice(); };
+      ttsVoice = pickTTSVoice();
+    }
+
     function finishRevealCleanup() {
       if (!currentStreamingMessage || !currentStreamingMessage.element) return;
 
@@ -580,6 +1120,9 @@
         const img = msgRef.element.querySelector('.avatar img');
         if (img) img.src = 'bones-3.png';
       }
+
+      // Speak the completed message via TTS
+      if (msgRef && msgRef.content) speakText(msgRef.content);
 
       currentEmoteName = 'yap';
       currentStreamingMessage = null;
@@ -643,23 +1186,19 @@
     async function sendMessage(text) {
       if (!text.trim() && !pastedImageFile) return;
 
-      // Handle image — upload to Firebase Storage, then fall through to normal chat flow
-      let pendingImageUrl = null;
+      // Handle pasted image
       if (pastedImageFile) {
         const file = pastedImageFile;
         pastedImageFile = null;
         document.getElementById('paste-preview').classList.remove('visible');
-        try {
-          pendingImageUrl = await uploadChatImage(file);
-        } catch (err) {
-          console.error('Image upload failed:', err);
-          addMessage('assistant', err.message.includes('5MB') || err.message.includes('Only JPEG')
-            ? `Image upload failed: ${err.message}`
-            : 'Image upload failed. Please try again.');
-          inputEl.value = '';
-          return;
-        }
-        if (!text.trim()) text = '[Image]';
+        // For now, upload to Firebase Storage if available, or show locally
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          addMessage('user', text || '[Image]', 'image', ev.target.result);
+        };
+        reader.readAsDataURL(file);
+        inputEl.value = '';
+        return;
       }
 
       // Build reply reference
@@ -671,8 +1210,8 @@
         id: Date.now().toString(),
         role: 'user',
         content: text,
-        type: pendingImageUrl ? 'image' : 'text',
-        imageUrl: pendingImageUrl || null,
+        type: 'text',
+        imageUrl: null,
         timestamp: Date.now(),
         replyTo: replyRef,
       };
@@ -683,7 +1222,7 @@
       inputEl.value = '';
 
       // If offline, queue and return
-      if (isOffline || !chatReady) {
+      if (isOffline || !navigator.onLine) {
         offlineQueue.push({ text, timestamp: Date.now() });
         localStorage.setItem('eevee.offlineQueue', JSON.stringify(offlineQueue));
         updateOfflineUI();
@@ -735,105 +1274,89 @@
         console.warn('Brain context injection skipped:', e);
       }
 
-      // Send via orchestrator SSE chat endpoint
+      // Send via orchestrator SSE /chat endpoint
       try {
-        const chatHistory = messages.slice(-20).map(m => {
-          if (m.type === 'image' && m.imageUrl) {
-            const parts = [];
-            if (m.content) parts.push({ type: 'text', text: m.content });
-            parts.push({ type: 'image_url', image_url: { url: m.imageUrl } });
-            return { role: m.role === 'assistant' ? 'assistant' : 'user', content: parts };
-          }
-          return {
-            role: m.role === 'assistant' ? 'assistant' : 'user',
-            content: m.content,
-          };
-        });
-        if (chatHistory.length > 0 && chatHistory[chatHistory.length - 1].role === 'user') {
-          const lastEntry = chatHistory[chatHistory.length - 1];
-          if (Array.isArray(lastEntry.content)) {
-            // Image message — update the text part with enriched message
-            const textPart = lastEntry.content.find(p => p.type === 'text');
-            if (textPart) textPart.text = messageToSend;
-            else lastEntry.content.unshift({ type: 'text', text: messageToSend });
-          } else {
-            lastEntry.content = messageToSend;
-          }
+        // Build messages array for the API (last 20 messages for context)
+        const chatMessages = messages.slice(-20).map(m => ({
+          role: m.role === 'assistant' ? 'assistant' : 'user',
+          content: m.content,
+        }));
+        // Replace last user message with the enriched version (brain context + personality)
+        if (chatMessages.length > 0 && chatMessages[chatMessages.length - 1].role === 'user') {
+          chatMessages[chatMessages.length - 1].content = messageToSend;
         }
 
-        const chatRes = await fetch(OPS_API + '/chat', {
+        const res = await fetch(OPS_API + '/chat', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'x-simonoto-key': CONFIG.opsApiKey,
+            'x-simonoto-key': OPS_API_KEY,
           },
-          body: JSON.stringify({ messages: chatHistory }),
+          body: JSON.stringify({ messages: chatMessages }),
         });
 
-        if (!chatRes.ok) throw new Error(`Chat API error: ${chatRes.status}`);
+        if (!res.ok) {
+          throw new Error(`Chat API error: ${res.status}`);
+        }
 
-        hideThinkingIndicator();
-        currentStreamingMessage = {
-          id: Date.now().toString(),
-          role: 'assistant',
-          content: '',
-          type: 'text',
-          timestamp: Date.now(),
-          element: null,
-        };
-        renderStreamingMessage();
-
-        const reader = chatRes.body.getReader();
+        // Parse SSE stream
+        const reader = res.body.getReader();
         const decoder = new TextDecoder();
         let buffer = '';
 
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
+
           buffer += decoder.decode(value, { stream: true });
           const lines = buffer.split('\n');
-          buffer = lines.pop();
+          buffer = lines.pop(); // keep incomplete line in buffer
 
           for (const line of lines) {
             if (!line.startsWith('data: ')) continue;
-            const payload = line.slice(6).trim();
-            if (payload === '[DONE]') continue;
-            try {
-              const chunk = JSON.parse(payload);
+            const jsonStr = line.slice(6).trim();
+            if (!jsonStr || jsonStr === '[DONE]') continue;
 
-              // Tool call indicator
+            try {
+              const chunk = JSON.parse(jsonStr);
+
+              // Tool events (brain store, push notifications, etc.)
               if (chunk.tool) {
-                renderToolIndicator(chunk.tool, chunk.status, chunk.summary);
+                console.log(`🔧 Tool: ${chunk.tool} — ${chunk.status}${chunk.summary ? ': ' + chunk.summary : ''}`);
                 continue;
               }
 
-              // Regular content
-              if (chunk.content && currentStreamingMessage) {
+              // Content chunks
+              if (chunk.content) {
+                hideThinkingIndicator();
+                if (!currentStreamingMessage) {
+                  currentStreamingMessage = {
+                    id: Date.now().toString(),
+                    role: 'assistant',
+                    content: '',
+                    type: 'text',
+                    timestamp: Date.now(),
+                    element: null,
+                  };
+                  renderStreamingMessage();
+                }
                 currentStreamingMessage.content += chunk.content;
                 updateStreamingContent();
               }
-            } catch { /* skip unparseable */ }
+            } catch (e) {
+              // Skip unparseable lines
+            }
           }
         }
 
-        // Persist to messages array + Firestore before finalize clears it
-        if (currentStreamingMessage && currentStreamingMessage.content) {
-          const finalMsg = {
-            id: currentStreamingMessage.id,
-            role: 'assistant',
-            content: currentStreamingMessage.content,
-            type: 'text',
-            timestamp: currentStreamingMessage.timestamp,
-          };
-          messages.push(finalMsg);
-          persistMessage(finalMsg);
-          cacheMessagesLocally();
-        }
-        finalizeStreamingMessage();
-      } catch (err) {
-        console.error('Send failed:', err);
+        // Finalize the streamed message
         hideThinkingIndicator();
-        if (currentStreamingMessage) finalizeStreamingMessage();
+        finalizeStreamingMessage();
+        console.log('📤 Message complete!');
+      } catch (err) {
+        console.error('❌ Send failed:', err);
+        hideThinkingIndicator();
+        finalizeStreamingMessage();
         addMessage('assistant', `Error: ${err.message}`, 'text');
       }
     }
@@ -951,53 +1474,6 @@
     }
 
     // ============================================
-    // TOOL CALL INDICATORS
-    // ============================================
-    function renderToolIndicator(toolName, status, summary) {
-      const id = 'tool-indicator-' + toolName.replace(/[^a-z0-9]/g, '-');
-      let el = document.getElementById(id);
-
-      if (el) {
-        // Update existing indicator
-        el.className = `tool-indicator tool-${status}`;
-        el.textContent = formatToolIndicator(toolName, status, summary);
-      } else {
-        // Create new indicator
-        el = document.createElement('div');
-        el.id = id;
-        el.className = `tool-indicator tool-${status}`;
-        el.textContent = formatToolIndicator(toolName, status, summary);
-        chatEl.appendChild(el);
-      }
-      chatEl.scrollTop = chatEl.scrollHeight;
-    }
-
-    function formatToolIndicator(tool, status, summary) {
-      const names = {
-        create_proposal: 'Creating proposal',
-        list_proposals: 'Listing proposals',
-        resolve_proposal: 'Resolving proposal',
-        batch_resolve: 'Batch resolving',
-        get_proposal: 'Fetching proposal details',
-        get_brief: 'Fetching morning brief',
-        get_department_status: 'Checking departments',
-        search_brain: 'Searching brain',
-        get_executor_status: 'Checking executors',
-        set_priority: 'Setting priority',
-        set_pace: 'Setting pace',
-        store_memory: 'Storing memory',
-        send_directive: 'Sending to Claude Code',
-        send_push: 'Sending notification',
-        check_push: 'Checking notifications',
-      };
-      const label = names[tool] || tool;
-      if (status === 'calling') return label + '...';
-      if (status === 'ok') return label + ' \u2014 done';
-      if (status === 'error') return label + ' \u2014 failed' + (summary ? ': ' + summary.slice(0, 100) : '');
-      return label;
-    }
-
-    // ============================================
     // UTILITIES
     // ============================================
     function escapeHtml(text) {
@@ -1031,17 +1507,23 @@
     }
 
     // ============================================
-    // OPEN BRAIN INTEGRATION (capture + retrieval)
+    // API CONFIG
     // ============================================
-    const BRAIN_API_URL = 'https://brain.professoroffunk.com';
+    const OPS_API = 'https://bones.professoroffunk.com';
+    const OPS_API_KEY = 'sk-simonoto-b9ba537ddfd473d3d342918c997190468d47d64a0b0469d6b3e9f8dd848dbae8';
+
+    // ============================================
+    // OPEN BRAIN INTEGRATION (capture + retrieval)
+    // Routed through orchestrator — no direct brain API key needed
+    // ============================================
 
     async function storeToBrain(content, source = 'evie', tags = []) {
       try {
-        const resp = await fetch(BRAIN_API_URL + '/memories', {
+        const resp = await fetch(OPS_API + '/brain/store', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'x-brain-key': CONFIG.brainApiKey
+            'x-simonoto-key': OPS_API_KEY
           },
           body: JSON.stringify({ content, source, tags, importance: 0.6 })
         });
@@ -1076,11 +1558,11 @@
       try {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 4000); // 4s timeout
-        const resp = await fetch(BRAIN_API_URL + '/memories/search', {
+        const resp = await fetch(OPS_API + '/brain/search', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'x-brain-key': CONFIG.brainApiKey
+            'x-simonoto-key': OPS_API_KEY
           },
           body: JSON.stringify({ query, limit }),
           signal: controller.signal
@@ -1156,18 +1638,13 @@
     
     imageBtn.addEventListener('click', () => fileInput.click());
     
-    fileInput.addEventListener('change', async (e) => {
+    fileInput.addEventListener('change', (e) => {
       const file = e.target.files[0];
-      if (!file) return;
-      fileInput.value = '';
-      pastedImageFile = file;
-      imageBtn.disabled = true;
-      imageBtn.textContent = '...';
-      try {
-        await sendMessage(inputEl.value || '');
-      } finally {
-        imageBtn.disabled = false;
-        imageBtn.textContent = '\u{1F5BC}\uFE0F';
+      if (file) {
+        // In a real app, you'd upload to Firebase Storage first
+        // For now, just send as base64 or file URL
+        console.log('Selected file:', file.name);
+        alert('Image upload coming soon! (Need Firebase Storage setup)');
       }
     });
 
@@ -1207,7 +1684,6 @@
     // ============================================
     // TABS
     // ============================================
-    const OPS_API = 'https://bones.professoroffunk.com';
 
     document.querySelectorAll('.nav-tab').forEach(tab => {
       tab.addEventListener('click', () => {
@@ -1227,8 +1703,11 @@
       try {
         const res = await fetch(OPS_API + path, {
           method: options.method || 'GET',
-          headers: { 'Content-Type': 'application/json', 'x-simonoto-key': CONFIG.opsApiKey },
-          body: options.body ? (typeof options.body === 'string' ? options.body : JSON.stringify(options.body)) : undefined,
+          headers: {
+            'Content-Type': 'application/json',
+            'x-simonoto-key': OPS_API_KEY,
+          },
+          body: options.body ? JSON.stringify(options.body) : undefined,
         });
         return await res.json();
       } catch (err) {
@@ -1273,7 +1752,6 @@
       content.appendChild(renderDeadlines(deadlines));
       content.appendChild(renderBrainSection(brainStats));
       content.appendChild(renderRefreshBtn());
-      content.appendChild(await renderToolAuditLog());
     }
 
     function renderStatusBar(status, executor) {
@@ -1666,21 +2144,7 @@
         html += '</div>';
       }
 
-      html += '<div style="margin-top:12px"><button class="ops-btn" id="test-push-btn">Test Push Notification</button></div>';
-
       section.innerHTML += html;
-
-      section.querySelector('#test-push-btn')?.addEventListener('click', async (e) => {
-        e.target.textContent = 'Sending...';
-        const result = await opsApi('/push/test', { method: 'POST' });
-        if (result?.sent) {
-          e.target.textContent = 'Sent to ' + result.sent + ' device(s)!';
-        } else {
-          e.target.textContent = 'No subscribers \u2014 enable notifications first';
-        }
-        setTimeout(() => { e.target.textContent = 'Test Push Notification'; }, 3000);
-      });
-
       return section;
     }
 
@@ -1691,64 +2155,39 @@
       const section = document.createElement('div');
       section.className = 'ops-section';
 
-      const all = Array.isArray(proposals) ? proposals : [];
-      const active = all.filter(p => ['pending', 'greenlit', 'executing', 'needs-revision', 'decomposing'].includes(p.status));
-      const recentShipped = all.filter(p => p.status === 'shipped').slice(0, 5);
+      const items = Array.isArray(proposals) ? proposals : [];
+      section.innerHTML = `<div class="ops-section-title">Proposals (${items.length} pending)</div>`;
 
-      section.innerHTML = `<div class="ops-section-title">Proposals (${active.length} active)</div>`;
-
-      if (active.length === 0 && recentShipped.length === 0) {
-        section.innerHTML += '<div class="ops-empty">No active proposals</div>';
+      if (items.length === 0) {
+        section.innerHTML += '<div class="ops-empty">No pending proposals</div>';
         return section;
       }
 
-      // Show active proposals
-      const items = active.length > 0 ? active : recentShipped;
-      if (active.length === 0 && recentShipped.length > 0) {
-        section.innerHTML += '<div class="ops-empty" style="margin-bottom:8px">No active proposals — showing recent ships:</div>';
-      }
-
       items.forEach(p => {
-        const statusBadge = p.status === 'executing' ? '🔄' : p.status === 'greenlit' ? '🟢' : p.status === 'shipped' ? '✅' : p.status === 'pending' ? '🟡' : '⏳';
         const card = document.createElement('div');
         card.className = 'ops-proposal';
-        const showActions = ['pending', 'needs-revision'].includes(p.status);
         card.innerHTML = `
-          <div class="ops-proposal-title">${statusBadge} ${escapeHtml(p.title)}</div>
-          <div class="ops-proposal-meta">${escapeHtml(p.domain)} · ${escapeHtml(p.effort || 'unknown')} · ${escapeHtml(p.status)}</div>
+          <div class="ops-proposal-title">${escapeHtml(p.title)}</div>
+          <div class="ops-proposal-meta">${escapeHtml(p.domain)} · ${escapeHtml(p.effort || 'unknown')} · ${escapeHtml(p.recommendation || '')}</div>
           <button class="ops-btn expand" data-id="${p.id}">Show details</button>
           <div class="ops-proposal-body" id="ops-body-${p.id}">${escapeHtml(p.body)}</div>
-          ${showActions ? `<div class="ops-proposal-actions">
+          <div class="ops-proposal-actions">
             <button class="ops-btn approve" data-id="${p.id}">Approve</button>
             <button class="ops-btn reject" data-id="${p.id}">Reject</button>
-          </div>` : ''}
+          </div>
+          <div class="proposal-note-input">
+            <input type="text" placeholder="Add a note..." data-note-id="${p.id}">
+            <button class="ops-btn" data-note-submit="${p.id}">Note</button>
+          </div>
         `;
 
-        card.querySelector('.ops-btn.expand').addEventListener('click', async (e) => {
+        card.querySelector('.ops-btn.expand').addEventListener('click', (e) => {
           const body = card.querySelector('.ops-proposal-body');
-          if (body.classList.contains('expanded')) {
-            body.classList.remove('expanded');
-            e.target.textContent = 'Show details';
-            return;
-          }
-
-          e.target.textContent = 'Loading...';
-          const detail = await opsApi('/proposals/' + p.id + '/detail');
-          if (detail && !detail.error) {
-            let html = '<div><strong>Status:</strong> ' + escapeHtml(detail.status) + ' | <strong>Attempts:</strong> ' + (detail.attempt_count || 0) + '</div>';
-            if (detail.department) html += '<div><strong>Department:</strong> ' + escapeHtml(detail.department) + '</div>';
-            if (detail.resolution_note) html += '<div><strong>Note:</strong> ' + escapeHtml(detail.resolution_note) + '</div>';
-            html += '<div style="margin-top:8px">' + escapeHtml(detail.body) + '</div>';
-            if (detail.execution_output) {
-              html += '<div style="margin-top:8px;padding:8px;background:rgba(0,0,0,0.2);border-radius:8px;font-size:12px;max-height:300px;overflow-y:auto;white-space:pre-wrap">' + escapeHtml(detail.execution_output.slice(0, 5000)) + '</div>';
-            }
-            body.innerHTML = html;
-          }
-          body.classList.add('expanded');
-          e.target.textContent = 'Hide details';
+          body.classList.toggle('expanded');
+          e.target.textContent = body.classList.contains('expanded') ? 'Hide details' : 'Show details';
         });
 
-        card.querySelector('.ops-btn.approve')?.addEventListener('click', async () => {
+        card.querySelector('.ops-btn.approve').addEventListener('click', async () => {
           await opsApi('/proposals/' + p.id + '/resolve', {
             method: 'POST',
             body: { status: 'greenlit' },
@@ -1764,7 +2203,23 @@
           loadOps();
         });
 
-        section.appendChild(card);
+        // Wire note submit
+        const noteBtn = card.querySelector('[data-note-submit]');
+        if (noteBtn) {
+          noteBtn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            const noteInput = card.querySelector('[data-note-id]');
+            const noteText = noteInput?.value?.trim();
+            if (!noteText) return;
+            await opsApi('/proposals/' + noteBtn.dataset.noteSubmit + '/notes', {
+              method: 'POST',
+              body: { note: noteText },
+            });
+            noteInput.value = '';
+          });
+        }
+
+        container.appendChild(card);
       });
 
       return section;
@@ -1917,8 +2372,11 @@
 
     async function fetchBrainStats() {
       try {
-        const resp = await fetch(BRAIN_API_URL + '/stats', {
-          headers: { 'x-brain-key': CONFIG.brainApiKey }
+        const resp = await fetch(OPS_API + '/brain/status', {
+          headers: {
+            'Content-Type': 'application/json',
+            'x-simonoto-key': OPS_API_KEY
+          }
         });
         if (!resp.ok) return null;
         return await resp.json();
@@ -1991,15 +2449,7 @@
           btn.textContent = '...';
           results.innerHTML = '';
 
-          let memories;
-          try {
-            memories = await searchBrain(query, 5);
-          } catch (e) {
-            btn.disabled = false;
-            btn.textContent = 'Search';
-            results.innerHTML = '<div class="ops-empty" style="padding:12px">Search failed</div>';
-            return;
-          }
+          const memories = await searchBrain(query, 5);
           btn.disabled = false;
           btn.textContent = 'Search';
 
@@ -2029,31 +2479,6 @@
           if (e.key === 'Enter') doSearch();
         });
       }, 0);
-
-      return section;
-    }
-
-    async function renderToolAuditLog() {
-      const section = document.createElement('div');
-      section.className = 'ops-section';
-      section.innerHTML = '<div class="ops-section-title">Evie Tool Log</div>';
-
-      const logs = await opsApi('/chat/tool-log?last=15');
-      if (!logs || !Array.isArray(logs) || logs.length === 0) {
-        section.innerHTML += '<div class="ops-empty">No recent tool calls</div>';
-        return section;
-      }
-
-      logs.forEach(log => {
-        const icon = log.status === 'ok' ? '\u2705' : '\u274C';
-        const time = new Date(log.timestamp + 'Z').toLocaleTimeString();
-        const div = document.createElement('div');
-        div.className = 'ops-proposal';
-        div.innerHTML = '<div class="ops-proposal-title">' + icon + ' ' + escapeHtml(log.tool_name) + '</div>' +
-          '<div class="ops-proposal-meta">' + time + ' \u00B7 ' + (log.duration_ms || 0) + 'ms</div>' +
-          (log.result ? '<div class="ops-proposal-body">' + escapeHtml(log.result.slice(0, 200)) + '</div>' : '');
-        section.appendChild(div);
-      });
 
       return section;
     }
@@ -2539,82 +2964,15 @@
         const msg = offlineQueue.shift();
         localStorage.setItem('eevee.offlineQueue', JSON.stringify(offlineQueue));
         try {
-          // Re-send queued message through the SSE chat endpoint
-          const chatRes = await fetch(OPS_API + '/chat', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'x-simonoto-key': CONFIG.opsApiKey,
-            },
-            body: JSON.stringify({
-              messages: [{ role: 'user', content: msg.text }],
-            }),
-          });
-          if (!chatRes.ok) throw new Error(`Chat API error: ${chatRes.status}`);
-          // Consume and discard the SSE stream (queued messages are fire-and-forget)
-          const reader = chatRes.body.getReader();
-          while (true) {
-            const { done } = await reader.read();
-            if (done) break;
-          }
+          await sendMessage(msg.text);
         } catch (e) {
+          // Put it back if send fails
           offlineQueue.unshift(msg);
           localStorage.setItem('eevee.offlineQueue', JSON.stringify(offlineQueue));
           break;
         }
       }
       updateOfflineUI();
-    }
-
-    // ============================================
-    // PUSH NOTIFICATIONS (Web Push via VAPID)
-    // ============================================
-    const VAPID_PUBLIC_KEY = 'BP1Svfw0K2VXchRsrtV5u8OMr9pWrt7FIM_LcuqZX0hvfa7l-erZedZ3jnl97SOfAVmH5QSpNaGeDKaUrvweq8c';
-
-    function urlBase64ToUint8Array(base64String) {
-      const padding = '='.repeat((4 - base64String.length % 4) % 4);
-      const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
-      const rawData = window.atob(base64);
-      const outputArray = new Uint8Array(rawData.length);
-      for (let i = 0; i < rawData.length; ++i) outputArray[i] = rawData.charCodeAt(i);
-      return outputArray;
-    }
-
-    async function subscribeToPush(topic) {
-      try {
-        if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-          console.warn('[Push] Push notifications not supported');
-          return false;
-        }
-        const reg = await navigator.serviceWorker.ready;
-        let subscription = await reg.pushManager.getSubscription();
-        if (!subscription) {
-          subscription = await reg.pushManager.subscribe({
-            userVisibleOnly: true,
-            applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
-          });
-          console.log('[Push] New subscription created');
-        }
-        const result = await opsApi('/push/subscribe', {
-          method: 'POST',
-          body: { subscription: subscription.toJSON(), topic },
-        });
-        console.log('[Push] Subscribed to', topic, result);
-        return true;
-      } catch (err) {
-        console.error('[Push] Subscribe failed:', err);
-        return false;
-      }
-    }
-
-    async function autoResubscribePush() {
-      if (!('Notification' in window) || Notification.permission !== 'granted') return;
-      if (localStorage.getItem('eevee.notif') === 'true') {
-        await subscribeToPush('simonoto-brief');
-      }
-      if (localStorage.getItem('eevee.ops-notif') === 'true') {
-        await subscribeToPush('simonoto-alerts');
-      }
     }
 
     // ============================================
@@ -2700,30 +3058,66 @@
         localStorage.setItem('eevee.personality', slider.value);
       });
 
-      // Notification toggles — wire to Web Push
-      const NOTIF_TOPIC_MAP = {
-        'notif': 'simonoto-brief',
-        'ops-notif': 'simonoto-alerts',
-      };
-      Object.entries(NOTIF_TOPIC_MAP).forEach(([id, topic]) => {
+      // TTS toggle
+      const ttsToggle = document.getElementById('tts-toggle');
+      const ttsVoiceRow = document.getElementById('tts-voice-row');
+      const ttsVoiceName = document.getElementById('tts-voice-name');
+      if (localStorage.getItem('eevee.tts') === 'true') {
+        ttsToggle.classList.add('active');
+        ttsVoiceRow.style.display = '';
+      }
+      ttsToggle.addEventListener('click', () => {
+        ttsToggle.classList.toggle('active');
+        const enabled = ttsToggle.classList.contains('active');
+        localStorage.setItem('eevee.tts', enabled);
+        ttsVoiceRow.style.display = enabled ? '' : 'none';
+        if (enabled && synth) {
+          // Preview the voice
+          ttsVoice = pickTTSVoice();
+          if (ttsVoice && ttsVoiceName) ttsVoiceName.textContent = ttsVoice.name;
+          const preview = new SpeechSynthesisUtterance('Text to speech enabled!');
+          if (ttsVoice) preview.voice = ttsVoice;
+          preview.rate = 1.05;
+          preview.pitch = 1.1;
+          synth.speak(preview);
+        } else if (synth) {
+          synth.cancel();
+        }
+      });
+      // Voice picker
+      document.getElementById('tts-voice-btn').addEventListener('click', () => {
+        if (!synth) return;
+        const voices = synth.getVoices().filter(v => v.lang.startsWith('en'));
+        if (!voices.length) return;
+        const currentIdx = voices.findIndex(v => v.name === (ttsVoice && ttsVoice.name));
+        const next = voices[(currentIdx + 1) % voices.length];
+        ttsVoice = next;
+        localStorage.setItem('eevee.tts-voice', next.name);
+        if (ttsVoiceName) ttsVoiceName.textContent = next.name;
+        // Preview
+        synth.cancel();
+        const preview = new SpeechSynthesisUtterance('Hello! I am Evie.');
+        preview.voice = next;
+        preview.rate = 1.05;
+        preview.pitch = 1.1;
+        synth.speak(preview);
+      });
+      // Show initial voice name
+      if (synth) {
+        const initVoice = pickTTSVoice();
+        if (initVoice && ttsVoiceName) ttsVoiceName.textContent = initVoice.name;
+      }
+
+      // Notification toggles
+      ['notif', 'ops-notif'].forEach(id => {
         const toggle = document.getElementById(id + '-toggle');
         const key = 'eevee.' + id;
         if (localStorage.getItem(key) === 'true') toggle.classList.add('active');
-        toggle.addEventListener('click', async () => {
-          const wasActive = toggle.classList.contains('active');
-          if (!wasActive) {
-            // Turning ON — request permission, then subscribe
-            if ('Notification' in window && Notification.permission !== 'granted') {
-              const perm = await Notification.requestPermission();
-              if (perm !== 'granted') return; // user denied, don't toggle
-            }
-            toggle.classList.add('active');
-            localStorage.setItem(key, 'true');
-            await subscribeToPush(topic);
-          } else {
-            // Turning OFF
-            toggle.classList.remove('active');
-            localStorage.setItem(key, 'false');
+        toggle.addEventListener('click', () => {
+          toggle.classList.toggle('active');
+          localStorage.setItem(key, toggle.classList.contains('active'));
+          if (toggle.classList.contains('active') && 'Notification' in window) {
+            Notification.requestPermission();
           }
         });
       });
@@ -2853,8 +3247,7 @@
     let currentUser = null;
 
     signoutBtn.addEventListener('click', async () => {
-      chatReady = false;
-      updateStatus(false);
+      if (ws) ws.close();
       await signOut(auth);
     });
 
@@ -2869,9 +3262,31 @@
     });
 
     // ============================================
+    // PAIRING UI
+    // ============================================
+    const pairingScreen = document.getElementById('pairing-screen');
+    const pairingRetryBtn = document.getElementById('pairing-retry-btn');
+
+    function showPairingScreen() {
+      loadingEl.classList.remove('active');
+      pairingScreen.classList.add('visible');
+    }
+
+    pairingRetryBtn.addEventListener('click', () => {
+      pairingScreen.classList.remove('visible');
+      loadingEl.classList.add('active');
+      if (ws) {
+        ws.onclose = null; // prevent old close handler from triggering reconnect
+        ws.close();
+      }
+      reconnectAttempts = 0;
+      connect();
+    });
+
+    // ============================================
     // TERMINAL
     // ============================================
-    const TERM_WS_URL = 'wss://eevee.professoroffunk.com/ws';
+    const TERM_WS_URL = 'wss://evie.professoroffunk.com';
     let term = null;
     let termWs = null;
     let termInitialized = false;
@@ -3077,7 +3492,7 @@
 
         termWs.onopen = async () => {
           console.log('Terminal WS connected');
-          if (!currentUser) { termWs.close(); return; }
+          // Send Firebase auth token
           const token = await currentUser.getIdToken();
           termWs.send(JSON.stringify({ type: 'auth', token }));
         };
@@ -3172,31 +3587,26 @@
           loadingEl.classList.remove('active');
         }
 
-        const configLoaded = await loadConfig(user.uid);
-        if (configLoaded) {
-          // Chat goes through orchestrator SSE (/chat endpoint), no WebSocket needed
-          chatReady = true;
-          updateStatus(true);
-          loadingEl.classList.remove('active');
-          // Flush any queued offline messages
-          if (navigator.onLine && offlineQueue.length > 0) {
-            setTimeout(flushOfflineQueue, 2000);
-          }
-          // Auto-resubscribe push notifications if previously enabled
-          autoResubscribePush();
-        } else {
-          loadingEl.textContent = 'No config found. Contact admin to set up /config/' + user.uid;
+        await loadConfig(user.uid);
+        // App is ready — chat uses SSE directly, no WebSocket needed
+        loadingEl.classList.remove('active');
+        updateStatus(true);
+        // Flush any queued offline messages
+        if (navigator.onLine && offlineQueue.length > 0) {
+          setTimeout(flushOfflineQueue, 2000);
         }
       } else {
         currentUser = null;
-        chatReady = false;
         historyLoaded = false;
         historyMessages = [];
         historyLastDoc = null;
         console.log('❌ Not authenticated');
         appEl.classList.remove('visible');
         loginScreen.classList.add('visible');
-        updateStatus(false);
+        if (ws) {
+          ws.close();
+          ws = null;
+        }
       }
     });
   </script>
