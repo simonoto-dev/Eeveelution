@@ -479,7 +479,6 @@
     // WEBSOCKET
     // ============================================
     let wsAuthenticated = false;
-    let pendingRequests = new Map();
 
     function connect() {
       const url = CONFIG.wsUrl;
@@ -548,20 +547,6 @@
               } else {
                 console.error('❌ Auth failed:', data.error);
                 ws.close();
-              }
-            }
-            return;
-          }
-          
-          // Handle request responses
-          if (data.type === 'res' && data.id) {
-            const handler = pendingRequests.get(data.id);
-            if (handler) {
-              pendingRequests.delete(data.id);
-              if (data.ok) {
-                handler.resolve(data.payload);
-              } else {
-                handler.reject(new Error(data.error?.message || 'Request failed'));
               }
             }
             return;
@@ -666,35 +651,6 @@
         .join('');
     }
 
-    function sendRequest(method, params) {
-      return new Promise((resolve, reject) => {
-        if (!ws || ws.readyState !== WebSocket.OPEN || !wsAuthenticated) {
-          reject(new Error('Not connected'));
-          return;
-        }
-
-        const id = generateId();
-        pendingRequests.set(id, { resolve, reject });
-
-        const msg = {
-          type: 'req',
-          id,
-          method,
-          params
-        };
-
-        ws.send(JSON.stringify(msg));
-
-        // Timeout after 30 seconds
-        setTimeout(() => {
-          if (pendingRequests.has(id)) {
-            pendingRequests.delete(id);
-            reject(new Error('Request timeout'));
-          }
-        }, 30000);
-      });
-    }
-
     function updateStatus(connected) {
       if (connected) {
         statusEl.classList.remove('disconnected');
@@ -724,85 +680,6 @@
 
     function handleMessage(data) {
       console.log('📨 Message:', data);
-
-      // Handle chat events from OpenClaw
-      if (data.type === 'event' && data.event === 'chat') {
-        const chatData = data.payload;
-
-        if (chatData.state === 'delta') {
-          // Streaming response - hide thinking indicator
-          hideThinkingIndicator();
-          const content = extractContent(chatData.message);
-          if (content && !currentStreamingMessage) {
-            currentStreamingMessage = {
-              role: 'assistant',
-              content: '',
-              type: 'text',
-              element: null
-            };
-            renderStreamingMessage();
-          }
-          if (content) {
-            currentStreamingMessage.content = content;
-            updateStreamingContent();
-          }
-        } else if (chatData.state === 'final' || chatData.state === 'aborted') {
-          hideThinkingIndicator();
-          // If final has message content but no streaming message was started, show it directly
-          const content = extractContent(chatData.message);
-          if (content && !currentStreamingMessage) {
-            addMessage('assistant', content, 'text');
-          } else {
-            // Update content from final if available
-            if (content && currentStreamingMessage) {
-              currentStreamingMessage.content = content;
-              updateStreamingContent();
-            }
-            finalizeStreamingMessage();
-          }
-        } else if (chatData.state === 'error') {
-          const errMsg = chatData.errorMessage || 'Unknown error';
-          console.error('🔴 Chat error:', errMsg);
-          // Don't show billing/failover errors - gateway will retry with fallback model
-          if (errMsg.includes('billing') || errMsg.includes('credits') || errMsg.includes('balance')) {
-            console.log('⏳ Provider failover in progress...');
-            return;
-          }
-          hideThinkingIndicator();
-          finalizeStreamingMessage();
-          addMessage('assistant', `Error: ${errMsg}`, 'text');
-        }
-        return;
-      }
-
-      // Handle agent streaming events (real-time, not throttled like chat deltas)
-      if (data.type === 'event' && data.event === 'agent') {
-        const agentData = data.payload;
-
-        if (agentData.stream === 'assistant' && agentData.data?.text) {
-          hideThinkingIndicator();
-          if (!currentStreamingMessage) {
-            currentStreamingMessage = {
-              role: 'assistant',
-              content: '',
-              type: 'text',
-              element: null
-            };
-            renderStreamingMessage();
-          }
-          currentStreamingMessage.content = agentData.data.text;
-          updateStreamingContent();
-        } else if (agentData.stream === 'lifecycle') {
-          if (agentData.data?.phase === 'start') {
-            showThinkingIndicator();
-          } else if (agentData.data?.phase === 'error') {
-            hideThinkingIndicator();
-            finalizeStreamingMessage();
-            addMessage('assistant', `Error: ${agentData.data.error || 'Agent error'}`, 'text');
-          }
-        }
-        return;
-      }
 
       // Handle other message formats (legacy)
       const content = data.content || data.text || data.message || '';
@@ -1638,15 +1515,7 @@
     
     imageBtn.addEventListener('click', () => fileInput.click());
     
-    fileInput.addEventListener('change', (e) => {
-      const file = e.target.files[0];
-      if (file) {
-        // In a real app, you'd upload to Firebase Storage first
-        // For now, just send as base64 or file URL
-        console.log('Selected file:', file.name);
-        alert('Image upload coming soon! (Need Firebase Storage setup)');
-      }
-    });
+    // File input handled via paste handler (pastedImageFile flow)
 
     // ============================================
     // AUTH UI
