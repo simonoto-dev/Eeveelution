@@ -2977,19 +2977,93 @@
         if (initVoice && ttsVoiceName) ttsVoiceName.textContent = initVoice.name;
       }
 
-      // Notification toggles
+      // Notification toggles — push subscription via VAPID
+      const VAPID_PUBLIC_KEY = 'BP1Svfw0K2VXchRsrtV5u8OMr9pWrt7FIM_LcuqZX0hvfa7l-erZedZ3jnl97SOfAVmH5QSpNaGeDKaUrvweq8c';
+      const PUSH_TOPIC_MAP = { 'notif': 'simonoto-brief', 'ops-notif': 'simonoto-alerts' };
+
+      function urlBase64ToUint8Array(base64String) {
+        const padding = '='.repeat((4 - base64String.length % 4) % 4);
+        const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+        const raw = atob(base64);
+        const arr = new Uint8Array(raw.length);
+        for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+        return arr;
+      }
+
+      async function managePushSubscription(topic, enable) {
+        try {
+          const reg = await navigator.serviceWorker.ready;
+          if (enable) {
+            const permission = await Notification.requestPermission();
+            if (permission !== 'granted') {
+              console.warn('[Push] Permission denied');
+              return false;
+            }
+            let sub = await reg.pushManager.getSubscription();
+            if (!sub) {
+              sub = await reg.pushManager.subscribe({
+                userVisibleOnly: true,
+                applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+              });
+              console.log('[Push] New subscription created');
+            }
+            const resp = await fetch(OPS_API + '/push/subscribe', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'x-simonoto-key': OPS_API_KEY },
+              body: JSON.stringify({ subscription: sub.toJSON(), topic }),
+            });
+            if (!resp.ok) throw new Error('Subscribe API: ' + resp.status);
+            console.log('[Push] Subscribed to', topic);
+            return true;
+          } else {
+            const sub = await reg.pushManager.getSubscription();
+            if (sub) {
+              await fetch(OPS_API + '/push/unsubscribe', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'x-simonoto-key': OPS_API_KEY },
+                body: JSON.stringify({ subscription: sub.toJSON(), topic }),
+              });
+              console.log('[Push] Unsubscribed from', topic);
+            }
+            return true;
+          }
+        } catch (err) {
+          console.error('[Push] Subscription error:', err);
+          return false;
+        }
+      }
+
       ['notif', 'ops-notif'].forEach(id => {
         const toggle = document.getElementById(id + '-toggle');
         const key = 'eevee.' + id;
+        const topic = PUSH_TOPIC_MAP[id];
         if (localStorage.getItem(key) === 'true') toggle.classList.add('active');
-        toggle.addEventListener('click', () => {
-          toggle.classList.toggle('active');
-          localStorage.setItem(key, toggle.classList.contains('active'));
-          if (toggle.classList.contains('active') && 'Notification' in window) {
-            Notification.requestPermission();
+        toggle.addEventListener('click', async () => {
+          const enabling = !toggle.classList.contains('active');
+          const ok = await managePushSubscription(topic, enabling);
+          if (ok) {
+            toggle.classList.toggle('active', enabling);
+            localStorage.setItem(key, enabling);
           }
         });
       });
+
+      // Re-register existing push subscriptions on load (handles SW updates)
+      (async () => {
+        if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+        const reg = await navigator.serviceWorker.ready;
+        const sub = await reg.pushManager.getSubscription();
+        if (!sub) return;
+        for (const [id, topic] of Object.entries(PUSH_TOPIC_MAP)) {
+          if (localStorage.getItem('eevee.' + id) === 'true') {
+            fetch(OPS_API + '/push/subscribe', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'x-simonoto-key': OPS_API_KEY },
+              body: JSON.stringify({ subscription: sub.toJSON(), topic }),
+            }).catch(err => console.warn('[Push] Re-register failed for', topic, err));
+          }
+        }
+      })();
 
       // Export JSON
       document.getElementById('export-json-btn').addEventListener('click', exportAllAsJSON);
