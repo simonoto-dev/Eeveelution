@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.simonoto.chatbridge</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/opt/homebrew/bin/node</string>
+        <string>/Users/SimonsMac/chat-bridge/server.js</string>
+    </array>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>BRIDGE_PORT</key>
+        <string>8765</string>
+        <key>CLAUDE_BIN</key>
+        <string>/opt/homebrew/bin/claude</string>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    </dict>
+    <key>WorkingDirectory</key>
+    <string>/Users/SimonsMac/chat-bridge</string>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/tmp/chatbridge-stdout.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/chatbridge-stderr.log</string>
+</dict>
+</plist>
